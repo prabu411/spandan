@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import useAuthStore from '../stores/authStore'
 import useSocketStore from '../stores/socketStore'
@@ -25,6 +25,7 @@ function StudentRoomPage() {
   const [results, setResults] = useState(null)
   // Past responses loaded from MongoDB - no sessionStorage needed
   const [pastResponses, setPastResponses] = useState([])
+  const timerIntervalRef = useRef(null)
 
   useEffect(() => {
     if (token) {
@@ -53,16 +54,22 @@ function StudentRoomPage() {
         setTimeLeft(data.question.timeToAnswer)
       }
       
-      // Store the timer interval ID to clear it later
-      if (window.questionTimerInterval) {
-        clearInterval(window.questionTimerInterval)
+      // Clear any existing timer
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current)
+        timerIntervalRef.current = null
       }
       
-      window.questionTimerInterval = setInterval(() => {
+      timerIntervalRef.current = setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 1) {
-            clearInterval(window.questionTimerInterval)
-            window.questionTimerInterval = null
+            clearInterval(timerIntervalRef.current)
+            timerIntervalRef.current = null
+            // Time expired - refresh from MongoDB only if room/user available
+            if (room?._id && user?._id) {
+              fetchPastResponses(room._id, user._id)
+            }
+            setCurrentQuestion(null)
             return 0
           }
           return prev - 1
@@ -72,9 +79,9 @@ function StudentRoomPage() {
 
     const handleQuestionEnded = (data) => {
       // Clear timer if running
-      if (window.questionTimerInterval) {
-        clearInterval(window.questionTimerInterval)
-        window.questionTimerInterval = null
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current)
+        timerIntervalRef.current = null
       }
       
       // Only fetch if room and user are available
@@ -88,9 +95,9 @@ function StudentRoomPage() {
     const handleNewQuestion = (question) => {
       // Handle manually created questions from teacher
       // Clear any existing timer
-      if (window.questionTimerInterval) {
-        clearInterval(window.questionTimerInterval)
-        window.questionTimerInterval = null
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current)
+        timerIntervalRef.current = null
       }
       
       setCurrentQuestion(question)
@@ -98,11 +105,11 @@ function StudentRoomPage() {
       setSubmitted(false)
       setTimeLeft(question.timeToAnswer || 30)
       
-      window.questionTimerInterval = setInterval(() => {
+      timerIntervalRef.current = setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 1) {
-            clearInterval(window.questionTimerInterval)
-            window.questionTimerInterval = null
+            clearInterval(timerIntervalRef.current)
+            timerIntervalRef.current = null
             // Time expired - refresh from MongoDB only if room/user available
             if (room?._id && user?._id) {
               fetchPastResponses(room._id, user._id)
@@ -176,14 +183,19 @@ function StudentRoomPage() {
   const handleSubmitAnswer = async () => {
     if (selectedOptions.length === 0 || submitted || !currentQuestion) return
 
+    // Stop timer immediately when submitting
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current)
+      timerIntervalRef.current = null
+    }
+
     const questionId = currentQuestion._id || currentQuestion.question?._id
-    const roomId = room._id
     const tta = currentQuestion.timeToAnswer || 30
     const responseTime = tta - timeLeft
     
     console.log('[StudentRoom] Submitting answer:', { 
       questionId, 
-      roomId, 
+      roomId: room._id, 
       studentId: user._id, 
       selectedOptions,
       timeToAnswer: tta,
@@ -200,7 +212,7 @@ function StudentRoomPage() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          roomId,
+          roomId: room._id,
           questionId,
           studentId: user._id,
           selectedOptions,
@@ -322,11 +334,13 @@ function StudentRoomPage() {
       minHeight: '100vh',
       background: 'var(--bg-primary)',
       fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif',
-      minWidth: '1200px'
+      width: '100vw',
+      maxWidth: '100vw',
+      overflowX: 'hidden'
     }}>
       <Sidebar user={user} />
       
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', marginLeft: '240px', minWidth: 0 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', marginLeft: '240px', minWidth: 0, maxWidth: 'calc(100vw - 240px)', overflowX: 'hidden' }}>
         {/* Header */}
         <header style={{
           background: 'var(--header-bg)',
@@ -346,7 +360,7 @@ function StudentRoomPage() {
         </header>
 
         {/* Content */}
-        <div style={{ flex: 1, padding: '32px' }}>
+        <div style={{ flex: 1, padding: '32px', width: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
           {/* Connection Status */}
           <div style={{
             background: 'var(--bg-card)',
@@ -566,10 +580,10 @@ function StudentRoomPage() {
                 </p>
               </div>
 
-              {/* Past Questions (70%) + Leaderboard (30%) */}
-              <div style={{ display: 'flex', gap: '16px' }}>
-                {/* Past Questions - 70% */}
-                <div style={{ flex: '0 0 70%', background: 'var(--bg-card)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--card-shadow)', border: '1px solid var(--border-color)' }}>
+              {/* Past Questions (flex) + Leaderboard (flex) */}
+              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', width: '100%', boxSizing: 'border-box' }}>
+                {/* Past Questions - flexible width */}
+                <div style={{ flex: '1 1 calc(70% - 8px)', minWidth: '300px', maxWidth: '100%', background: 'var(--bg-card)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--card-shadow)', border: '1px solid var(--border-color)', boxSizing: 'border-box' }}>
                   <h3 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
                     📋 Past Questions {pastResponses.length > 0 && `(${pastResponses.length})`}
                   </h3>
@@ -727,8 +741,8 @@ function StudentRoomPage() {
                   </div>
                 )}
                 </div>
-                {/* Leaderboard - 30% */}
-                <div style={{ flex: '0 0 30%', background: 'var(--bg-card)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--card-shadow)', border: '1px solid var(--border-color)' }}>
+                {/* Leaderboard - flexible width */}
+                <div style={{ flex: '1 1 calc(30% - 10px)', minWidth: '280px', maxWidth: '100%', background: 'var(--bg-card)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--card-shadow)', border: '1px solid var(--border-color)', boxSizing: 'border-box', overflow: 'hidden' }}>
                   <h3 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
                     🏆 Leaderboard
                   </h3>

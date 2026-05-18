@@ -12,6 +12,12 @@ export const useSocketStore = create((set, get) => ({
   participants: 0,
 
   connect: (token) => {
+    const { socket: existingSocket } = get()
+    if (existingSocket?.connected) {
+      console.log('Socket already connected, skipping')
+      return
+    }
+
     const socket = io(SOCKET_URL, {
       auth: { token },
       transports: ['websocket', 'polling']
@@ -20,6 +26,8 @@ export const useSocketStore = create((set, get) => ({
     socket.on('connect', () => {
       console.log('Socket connected')
       set({ isConnected: true })
+      // Emit authenticate AFTER connect is confirmed
+      socket.emit('authenticate', { token })
     })
 
     socket.on('disconnect', () => {
@@ -70,7 +78,7 @@ export const useSocketStore = create((set, get) => ({
     })
 
     // Authenticate the socket
-    socket.emit('authenticate', { token })
+    // Emit moved INSIDE connect handler above to ensure socket is ready
 
     set({ socket })
   },

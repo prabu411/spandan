@@ -4,6 +4,7 @@ import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
+import jwt from 'jsonwebtoken'
 import dotenv from 'dotenv'
 import mongoose from 'mongoose'
 
@@ -20,6 +21,25 @@ import './models/index.js'
 
 dotenv.config()
 
+// Request timeout middleware - defined BEFORE use due to hoisting
+const requestTimeout = (req, res, next) => {
+  // Set a 30-second timeout for all requests
+  req.setTimeout(30000, () => {
+    if (!res.headersSent) {
+      res.status(504).json({ error: 'Request timeout', message: 'The request took too long to process' })
+    }
+  })
+  
+  // Also set server-side timeout for the response
+  res.setTimeout(30000, () => {
+    if (!res.headersSent) {
+      res.status(504).json({ error: 'Response timeout', message: 'The response took too long to generate' })
+    }
+  })
+  
+  next()
+}
+
 const app = express()
 const httpServer = createServer(app)
 const io = new Server(httpServer, {
@@ -32,16 +52,19 @@ const io = new Server(httpServer, {
 // Make io accessible to routes
 app.set('io', io)
 
+// Trust proxy (for rate limiting behind nginx)
+app.set('trust proxy', 1)
+
 // Rate limiting
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 500, // limit each IP to 500 requests per windowMs (increased for real-time classroom use)
   message: { error: 'Too many requests, please try again later' }
 })
 
 const authLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // limit each IP to 10 auth requests per hour
+  max: 100, // limit each IP to 100 auth requests per hour (increased from 10 for live classroom use)
   message: { error: 'Too many authentication attempts, please try again later' }
 })
 
@@ -54,6 +77,9 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }))
 app.use('/api/', apiLimiter)
 app.use('/api/auth/', authLimiter)
+
+// Apply timeout middleware before routes
+app.use(requestTimeout)
 
 // API Routes
 app.use('/api/auth', authRoutes)
@@ -82,12 +108,19 @@ io.on('connection', (socket) => {
   // Authenticate socket
   socket.on('authenticate', (data) => {
     try {
-      const jwt = require('jsonwebtoken')
+      if (!data.token) {
+        socket.emit('authenticated', { success: false, error: 'No token provided' })
+        return
+      }
       const decoded = jwt.verify(data.token, process.env.JWT_SECRET || 'your-secret-key-change-in-production')
       connectedUsers.set(socket.id, decoded.userId)
       socket.emit('authenticated', { success: true })
     } catch (error) {
-      socket.emit('authenticated', { success: false, error: 'Invalid token' })
+      if (error.name === 'TokenExpiredError') {
+        socket.emit('authenticated', { success: false, error: 'Token expired', expired: true })
+      } else {
+        socket.emit('authenticated', { success: false, error: 'Invalid token' })
+      }
     }
   })
 

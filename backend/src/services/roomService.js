@@ -29,9 +29,13 @@ export const getRoomByCode = async (code) => {
   return room
 }
 
-export const getRoomsByTeacher = async (teacherId) => {
-  const rooms = await Room.find({ teacher: teacherId }).sort({ createdAt: -1 })
-  
+export const getRoomsByTeacher = async (teacherId, options = {}) => {
+  const { skip = 0, limit = 100 } = options
+  const rooms = await Room.find({ teacher: teacherId })
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    
   // Get question counts for each room
   const roomIds = rooms.map(r => r._id)
   const questionCounts = await Question.aggregate([

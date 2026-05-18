@@ -24,9 +24,28 @@ router.post('/', authenticate, authorize('teacher'), validate(createRoomSchema),
 // Get rooms for current teacher
 router.get('/', authenticate, async (req, res) => {
   try {
+    const { page = 1, limit = 20 } = req.query
+    const pageNum = Math.max(1, parseInt(page, 10) || 1)
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20))
+    const skip = (pageNum - 1) * limitNum
+
     if (req.user.role === 'teacher') {
-      const rooms = await getRoomsByTeacher(req.user._id)
-      res.json({ rooms })
+      const [rooms, total] = await Promise.all([
+        getRoomsByTeacher(req.user._id, { skip, limit: limitNum }),
+        req.user.model || Promise.resolve(null)
+      ])
+      // Count total rooms for teacher
+      const Room = (await import('../models/Room.js')).default
+      const totalCount = await Room.countDocuments({ teacher: req.user._id })
+      res.json({ 
+        rooms,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: totalCount,
+          pages: Math.ceil(totalCount / limitNum)
+        }
+      })
     } else {
       res.status(403).json({ error: 'Only teachers can view room list' })
     }

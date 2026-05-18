@@ -1,50 +1,54 @@
 import crypto from 'crypto'
+import PasswordResetToken from '../models/PasswordResetToken.js'
 
-// In-memory store for reset tokens (in production, use Redis or DB)
-const resetTokens = new Map()
+const TOKEN_EXPIRY_MS = 3600000 // 1 hour
 
-// In-memory store for email verification (in production, use DB)
-const verificationTokens = new Map()
-
-export const generateResetToken = (email) => {
+export const generateResetToken = async (email) => {
   const token = crypto.randomBytes(32).toString('hex')
-  const expires = Date.now() + 3600000 // 1 hour
+  const expires = new Date(Date.now() + TOKEN_EXPIRY_MS)
   
-  resetTokens.set(token, { email, expires })
+  await PasswordResetToken.findOneAndDelete({ email: email.toLowerCase() })
   
-  // Clean up expired tokens
-  for (const [key, value] of resetTokens.entries()) {
-    if (value.expires < Date.now()) {
-      resetTokens.delete(key)
-    }
-  }
+  const resetToken = new PasswordResetToken({
+    email: email.toLowerCase(),
+    token,
+    expires
+  })
+  
+  await resetToken.save()
+  
+  // Clean up all expired tokens
+  await PasswordResetToken.deleteMany({ expires: { $lt: new Date() } })
   
   return token
 }
 
-export const verifyResetToken = (token) => {
-  const data = resetTokens.get(token)
+export const verifyResetToken = async (token) => {
+  const resetToken = await PasswordResetToken.findOne({ token })
   
-  if (!data) {
+  if (!resetToken) {
     return { valid: false, message: 'Invalid or expired token' }
   }
   
-  if (data.expires < Date.now()) {
-    resetTokens.delete(token)
+  if (resetToken.expires < new Date()) {
+    await PasswordResetToken.findByIdAndDelete(resetToken._id)
     return { valid: false, message: 'Token has expired' }
   }
   
-  return { valid: true, email: data.email }
+  if (resetToken.used) {
+    return { valid: false, message: 'Token has already been used' }
+  }
+  
+  return { valid: true, email: resetToken.email }
 }
 
 export const resetPassword = async (token, newPassword) => {
-  const { valid, email, message } = verifyResetToken(token)
+  const { valid, email, message } = await verifyResetToken(token)
   
   if (!valid) {
     throw new Error(message)
   }
   
-  // Import User model
   const User = (await import('../models/User.js')).default
   
   const user = await User.findOne({ email })
@@ -56,44 +60,14 @@ export const resetPassword = async (token, newPassword) => {
   user.password = newPassword
   await user.save()
   
-  // Delete the used token
-  resetTokens.delete(token)
+  // Mark token as used
+  await PasswordResetToken.findOneAndUpdate({ token }, { used: true })
   
   return true
 }
 
-export const generateVerificationToken = (userId) => {
-  const token = crypto.randomBytes(32).toString('hex')
-  const expires = Date.now() + 86400000 // 24 hours
-  
-  verificationTokens.set(token, { userId, expires })
-  
-  return token
-}
-
-export const verifyEmail = async (token) => {
-  const data = verificationTokens.get(token)
-  
-  if (!data) {
-    return { valid: false, message: 'Invalid or expired token' }
-  }
-  
-  if (data.expires < Date.now()) {
-    verificationTokens.delete(token)
-    return { valid: false, message: 'Token has expired' }
-  }
-  
-  const User = (await import('../models/User.js')).default
-  const user = await User.findById(data.userId)
-  
-  if (!user) {
-    return { valid: false, message: 'User not found' }
-  }
-  
-  user.isVerified = true
-  await user.save()
-  
-  verificationTokens.delete(token)
-  
-  return { valid: true, user }
+// Periodic cleanup for expired tokens (call this periodically)
+export const cleanupExpiredTokens = async () => {
+  const result = await PasswordResetToken.deleteMany({ expires: { $lt: new Date() } })
+  return result.deletedCount
 }

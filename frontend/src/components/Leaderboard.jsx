@@ -108,12 +108,17 @@ const Leaderboard = ({ roomId, token, socket }) => {
           <div key={entry.studentId} style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '12px',
-            padding: '12px 14px',
+            gap: '8px',
+            padding: '8px 10px',
+            minWidth: 0,
+            width: '100%',
+            maxWidth: '100%',
+            overflow: 'hidden',
             background: 'linear-gradient(135deg, #dbeafe, #bfdbfe)',
             borderRadius: '10px',
             border: '2px solid #3b82f6',
-            boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)'
+            boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)',
+            boxSizing: 'border-box'
           }}>
             <span style={{
               width: '28px',
@@ -130,11 +135,15 @@ const Leaderboard = ({ roomId, token, socket }) => {
             }}>
               {rank}
             </span>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ flex: '1 1 auto', minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
               <div style={{
                 fontSize: '14px',
                 fontWeight: '600',
-                color: 'var(--text-primary)'
+                color: 'var(--text-primary)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: '100%'
               }}>
                 {entry.studentName} (You)
               </div>
@@ -147,14 +156,17 @@ const Leaderboard = ({ roomId, token, socket }) => {
               </div>
             </div>
             <div style={{
-              fontSize: '18px',
+              fontSize: '16px',
               fontWeight: '700',
               color: '#3b82f6',
               textAlign: 'right',
-              flexShrink: 0
+              flexShrink: 0,
+              minWidth: '45px',
+              maxWidth: '45px',
+              overflow: 'hidden'
             }}>
               {entry.totalPoints}
-              <span style={{ fontSize: '11px', fontWeight: '500', marginLeft: '2px' }}>pts</span>
+              <span style={{ fontSize: '10px', fontWeight: '500', marginLeft: '2px' }}>pts</span>
             </div>
           </div>
         </>
@@ -165,8 +177,13 @@ const Leaderboard = ({ roomId, token, socket }) => {
       <div key={entry.studentId} style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '12px',
-        padding: '12px 14px',
+        gap: '8px',
+        padding: '8px 10px',
+        minWidth: 0,
+        width: '100%',
+        maxWidth: '100%',
+        overflow: 'hidden',
+        boxSizing: 'border-box',
         background: entry.rank === 1 ? 'linear-gradient(135deg, #fef3c7, #fde68a)' :
                      entry.rank === 2 ? 'linear-gradient(135deg, #f3f4f6, #e5e7eb)' :
                      entry.rank === 3 ? 'linear-gradient(135deg, #fef3c7, #fde68a)' : 
@@ -191,14 +208,15 @@ const Leaderboard = ({ roomId, token, socket }) => {
           {entry.rank <= 3 ? ['🥇', '🥈', '🥉'][entry.rank - 1] : rank}
         </span>
 
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ flex: '1 1 auto', minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
           <div style={{
             fontSize: '14px',
             fontWeight: '600',
             color: 'var(--text-primary)',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
-            textOverflow: 'ellipsis'
+            textOverflow: 'ellipsis',
+            maxWidth: '100%'
           }}>
             {entry.studentName}{isCurrentUser ? ' (You)' : ''}
           </div>
@@ -212,21 +230,33 @@ const Leaderboard = ({ roomId, token, socket }) => {
         </div>
 
         <div style={{
-          fontSize: '18px',
+          fontSize: '16px',
           fontWeight: '700',
           color: entry.rank === 1 ? '#f59e0b' : 'var(--text-primary)',
           textAlign: 'right',
-          flexShrink: 0
+          flexShrink: 0,
+          minWidth: '45px',
+          maxWidth: '45px',
+          overflow: 'hidden'
         }}>
           {entry.totalPoints}
-          <span style={{ fontSize: '11px', fontWeight: '500', marginLeft: '2px' }}>pts</span>
+          <span style={{ fontSize: '10px', fontWeight: '500', marginLeft: '2px' }}>pts</span>
         </div>
       </div>
     )
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      gap: '8px', 
+      width: '100%', 
+      minWidth: 0,
+      maxWidth: '100%',
+      overflowX: 'hidden', 
+      boxSizing: 'border-box' 
+    }}>
       {leaderboard.map((entry, index) => renderRank(entry, index))}
       
       {/* Show total participants count */}

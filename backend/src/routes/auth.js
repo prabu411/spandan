@@ -104,7 +104,7 @@ router.post('/forgot-password', async (req, res) => {
     const userObj = await getUserByEmail(email)
     
     // Generate reset token
-    const token = generateResetToken(email)
+    const token = await generateResetToken(email)
     
     // Send reset email
     await sendResetPasswordEmail(email, token)

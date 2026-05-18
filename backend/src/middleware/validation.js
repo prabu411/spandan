@@ -30,6 +30,24 @@ export const createRoomSchema = z.object({
   }).optional()
 })
 
+// Settings validation schema for room settings update
+export const roomSettingsSchema = z.object({
+  allowLateJoin: z.boolean().optional(),
+  showResultsImmediately: z.boolean().optional(),
+  requireCorrectAnswer: z.boolean().optional(),
+  timeToAnswer: z.number().min(5).max(300).optional(),
+  points: z.number().min(10).max(1000).optional(),
+  segmentTime: z.number().min(1).max(60).optional(),
+  questionsPerSegment: z.number().min(1).max(10).optional(),
+  difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
+  questionProvider: z.enum(['minimax', 'openai', 'anthropic', 'google']).optional(),
+  questionTypeMix: z.object({
+    MCQ: z.number().min(0).max(100).optional(),
+    TF: z.number().min(0).max(100).optional(),
+    MSQ: z.number().min(0).max(100).optional()
+  }).optional()
+})
+
 // Question validation schemas
 export const createQuestionSchema = z.object({
   question: z.string().min(1, 'Question text is required'),

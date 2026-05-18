@@ -4,54 +4,84 @@ import { createServer } from 'http'
 import { Server } from 'socket.io'
 
 const app = express()
+const PORT = process.env.TRANSCRIPTION_PORT || 3002
+
+// CORS configuration from env
+const FRONTEND_URL = process.env.FRONTEND_URL || '*'
+const CORS_OPTIONS = FRONTEND_URL === '*'
+  ? { origin: '*', methods: ['GET', 'POST'] }
+  : { origin: FRONTEND_URL, methods: ['GET', 'POST'] }
+
 const httpServer = createServer(app)
-const io = new Server(httpServer, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
-  }
-})
+const io = new Server(httpServer, { cors: CORS_OPTIONS })
 
 let transcriber = null
-const rooms = new Map()
+let isReady = false
+
+// Health check endpoint
+app.get('/api/transcription/status', (req, res) => {
+  res.json({
+    status: transcriber ? 'ready' : 'loading',
+    model: 'whisper-base',
+    isReady
+  })
+})
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
 
 // Initialize Whisper model
 async function initWhisper() {
   try {
     console.log('🔄 Loading Whisper model on server...')
     transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-base')
+    isReady = true
     console.log('✅ Whisper model loaded successfully!')
   } catch (error) {
     console.error('❌ Failed to load Whisper model:', error)
+    isReady = false
   }
 }
 
-// REST API for status
-app.get('/api/transcription/status', (req, res) => {
-  res.json({ 
-    status: transcriber ? 'ready' : 'loading',
-    model: 'whisper-base'
+// Graceful shutdown
+function gracefulShutdown(signal) {
+  console.log(`\n${signal} received. Starting graceful shutdown...`)
+  
+  httpServer.close((err) => {
+    if (err) {
+      console.error('Error during server shutdown:', err)
+      process.exit(1)
+    }
+    console.log('✅ HTTP server closed')
+    process.exit(0)
   })
-})
+  
+  // Force exit after 10 seconds
+  setTimeout(() => {
+    console.error('Forced shutdown after timeout')
+    process.exit(1)
+  }, 10000)
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
+process.on('SIGINT', () => gracefulShutdown('SIGINT'))
 
 // WebSocket handling
 io.on('connection', (socket) => {
   console.log('🔗 Client connected:', socket.id)
 
-  // Join room for transcription
   socket.on('join_transcription', (data) => {
     const { roomId, userId } = data
     socket.join(`transcription:${roomId}`)
     console.log(`👤 User ${userId} joined transcription room ${roomId}`)
   })
 
-  // Leave room
   socket.on('leave_transcription', (data) => {
     const { roomId } = data
     socket.leave(`transcription:${roomId}`)
   })
 
-  // Audio data received from client
   socket.on('audio_data', async (data) => {
     if (!transcriber) {
       socket.emit('transcription_error', { error: 'Model not loaded' })
@@ -60,11 +90,8 @@ io.on('connection', (socket) => {
 
     try {
       const { roomId, audioData, sequenceNumber } = data
-      
-      // Convert base64 to buffer
       const audioBuffer = Buffer.from(audioData, 'base64')
       
-      // Transcribe using Whisper
       const result = await transcriber(audioBuffer, {
         task: 'transcribe',
         language: 'en',
@@ -72,14 +99,12 @@ io.on('connection', (socket) => {
         stride_length_s: 5,
       })
 
-      // Send transcription back to client
       socket.emit('transcription_result', {
         roomId,
         text: result.text || '',
         sequence: sequenceNumber
       })
 
-      // Broadcast to others in the room
       socket.to(`transcription:${roomId}`).emit('transcription_broadcast', {
         text: result.text || '',
         sequence: sequenceNumber
@@ -91,7 +116,6 @@ io.on('connection', (socket) => {
     }
   })
 
-  // Simple audio chunk for real-time transcription
   socket.on('audio_chunk', async (data) => {
     if (!transcriber) {
       socket.emit('transcription_error', { error: 'Model not loaded' })
@@ -100,11 +124,8 @@ io.on('connection', (socket) => {
 
     try {
       const { audio, roomId, chunkId } = data
-      
-      // Convert base64 audio to buffer
       const audioBuffer = Buffer.from(audio, 'base64')
       
-      // Quick transcription for real-time
       const result = await transcriber(audioBuffer, {
         task: 'transcribe',
         language: 'en',
@@ -130,13 +151,13 @@ io.on('connection', (socket) => {
 })
 
 // Start server
-const PORT = process.env.TRANSCRIPTION_PORT || 3002
-
 initWhisper().then(() => {
   httpServer.listen(PORT, () => {
     console.log(`🎤 Transcription service running on port ${PORT}`)
     console.log(`   WebSocket endpoint: ws://localhost:${PORT}`)
     console.log(`   REST API: http://localhost:${PORT}/api/transcription/status`)
+    console.log(`   Health check: http://localhost:${PORT}/health`)
+    console.log(`   CORS origin: ${FRONTEND_URL}`)
   })
 })
 

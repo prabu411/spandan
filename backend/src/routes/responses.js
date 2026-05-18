@@ -36,7 +36,7 @@ router.post('/', authorize('student'), async (req, res) => {
     let isCorrect = false
     
     if (question.type === 'MSQ') {
-      // MSQ: All correct options must be selected, no incorrect options
+      // MSQ: ALL correct options must be selected AND NO incorrect options selected
       const correctIndices = question.options
         .map((opt, idx) => opt.isCorrect ? idx : -1)
         .filter(idx => idx !== -1)
@@ -48,7 +48,7 @@ router.post('/', authorize('student'), async (req, res) => {
       const allCorrectSelected = correctIndices.every(idx => selectedSet.has(idx))
       const noIncorrectSelected = selectedOptions.every(idx => correctSet.has(idx))
       
-      isCorrect = allCorrectSelected && noIncorrectSelected && selectedOptions.length === correctIndices.length
+      isCorrect = allCorrectSelected && noIncorrectSelected
     } else {
       // MCQ/TF: Single correct answer
       const selectedOptionData = question.options[selectedOptions[0]]
@@ -118,7 +118,7 @@ router.get('/', async (req, res) => {
     const Response = (await import('../models/Response.js')).default
     const Room = (await import('../models/Room.js')).default
     const RoomMember = (await import('../models/RoomMember.js')).default
-    const { roomId, studentId } = req.query
+    const { roomId, studentId, page = 1, limit = 50 } = req.query
     const currentUser = req.user
 
     // Must provide at least roomId
@@ -148,11 +148,24 @@ router.get('/', async (req, res) => {
     const filter = { roomId }
     if (studentId) filter.studentId = studentId
 
-    const responses = await Response.find(filter).populate('questionId').lean()
+    const pageNum = Math.max(1, parseInt(page, 10) || 1)
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50))
+    const skip = (pageNum - 1) * limitNum
+
+    const [responses, total] = await Promise.all([
+      Response.find(filter).populate('questionId').skip(skip).limit(limitNum).sort({ createdAt: -1 }).lean(),
+      Response.countDocuments(filter)
+    ])
 
     res.json({
       success: true,
-      responses
+      responses,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        pages: Math.ceil(total / limitNum)
+      }
     })
   } catch (error) {
     console.error('Error fetching responses:', error)

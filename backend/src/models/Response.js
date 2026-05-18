@@ -44,6 +44,8 @@ const responseSchema = new mongoose.Schema({
 
 // Index for fast lookups
 responseSchema.index({ roomId: 1, questionId: 1, studentId: 1 }, { unique: true })
+// Index for leaderboard queries
+responseSchema.index({ roomId: 1, studentId: 1, points: -1 })
 
 const Response = mongoose.model('Response', responseSchema)
 

@@ -44,14 +44,6 @@ const roomSchema = new mongoose.Schema({
       TF: { type: Number, default: 30 },
       MSQ: { type: Number, default: 20 }
     }
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
   }
 }, {
   timestamps: true

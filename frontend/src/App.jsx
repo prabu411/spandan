@@ -32,6 +32,13 @@ function App() {
     }
   }, [token, isAuthenticated, connect, disconnect])
 
+  // Cleanup socket on unmount
+  useEffect(() => {
+    return () => {
+      disconnect()
+    }
+  }, [disconnect])
+
   useEffect(() => {
     if (isDark) {
       document.documentElement.setAttribute('data-theme', 'dark')

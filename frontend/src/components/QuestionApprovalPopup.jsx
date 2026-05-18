@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 
-function QuestionApprovalPopup({ questions, onApprove, onReject, onClose }) {
+function QuestionApprovalPopup({ questions, onApprove, onReject, onClose, onComplete }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [pendingQuestions, setPendingQuestions] = useState(questions || [])
 
@@ -25,8 +25,12 @@ function QuestionApprovalPopup({ questions, onApprove, onReject, onClose }) {
     if (currentIndex < pendingQuestions.length - 1) {
       setCurrentIndex(prev => prev + 1)
     } else {
-      // All questions processed
-      onClose()
+      // All questions processed - call onComplete instead of just onClose
+      if (onComplete) {
+        onComplete()
+      } else {
+        onClose()
+      }
     }
   }
 

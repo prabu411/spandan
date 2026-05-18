@@ -1,7 +1,9 @@
 import jwt from 'jsonwebtoken'
+import crypto from 'crypto'
 import User from '../models/User.js'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production'
+const JWT_EXPIRY = process.env.JWT_EXPIRY || '7d'
 
 export const authenticate = async (req, res, next) => {
   try {
@@ -70,6 +72,6 @@ export const generateToken = (userId) => {
   return jwt.sign(
     { userId },
     JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: JWT_EXPIRY }
   )
 }

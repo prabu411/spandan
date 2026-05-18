@@ -36,7 +36,7 @@ export const getQuestionById = async (id) => {
 }
 
 export const getQuestionsByRoom = async (roomId) => {
-  return Question.find({ room: roomId }).sort({ createdAt: 1 })
+  return Question.find({ roomId: roomId }).sort({ createdAt: 1 })
 }
 
 export const updateQuestion = async (questionId, updates, userId) => {
@@ -79,7 +79,7 @@ export const deleteQuestion = async (questionId, userId) => {
 export const setActiveQuestion = async (roomId, questionId) => {
   // Deactivate all questions in the room
   await Question.updateMany(
-    { room: roomId },
+    { roomId: roomId },
     { $set: { isActive: false } }
   )
   
@@ -114,8 +114,8 @@ export const submitResponse = async (data, studentId) => {
   
   const response = new Response({
     question: questionId,
-    room: question.room,
-    student: studentId,
+    roomId: question.roomId,
+    studentId: studentId,
     selectedOption,
     isCorrect,
     responseTime
@@ -133,8 +133,8 @@ export const getResponsesByQuestion = async (questionId) => {
 }
 
 export const getResponsesByRoom = async (roomId) => {
-  return Response.find({ room: roomId })
-    .populate('student', 'name email')
+  return Response.find({ roomId: roomId })
+    .populate('studentId', 'name email')
     .sort({ createdAt: -1 })
 }
 
