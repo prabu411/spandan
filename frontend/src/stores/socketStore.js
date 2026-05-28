@@ -1,9 +1,6 @@
 import { create } from 'zustand'
 import { io } from 'socket.io-client'
-
-const SOCKET_URL = process.env.NODE_ENV === 'production' 
-  ? window.location.origin 
-  : 'http://localhost:3001'
+import { SOCKET_URL } from '../config.js'
 
 export const useSocketStore = create((set, get) => ({
   socket: null,
@@ -26,7 +23,6 @@ export const useSocketStore = create((set, get) => ({
     socket.on('connect', () => {
       console.log('Socket connected')
       set({ isConnected: true })
-      // Emit authenticate AFTER connect is confirmed
       socket.emit('authenticate', { token })
     })
 
@@ -76,9 +72,6 @@ export const useSocketStore = create((set, get) => ({
     socket.on('new_question', (data) => {
       console.log('New question received:', data)
     })
-
-    // Authenticate the socket
-    // Emit moved INSIDE connect handler above to ensure socket is ready
 
     set({ socket })
   },

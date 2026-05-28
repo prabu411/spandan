@@ -1,6 +1,5 @@
 import { create } from 'zustand'
-
-const API_URL = '/api'
+import { API_URL } from '../config.js'
 
 export const useRoomStore = create((set, get) => ({
   rooms: [],

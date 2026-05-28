@@ -1,10 +1,11 @@
+import { API_URL } from '../config.js'
 import api from '../lib/api'
-import useAuthStore from '../stores/authStore'
+import useAuthStore from '../stores/authStore.js'
 
 // Get available AI providers
 export const getAIProviders = async () => {
   const token = useAuthStore.getState().token
-  const response = await fetch('/api/questions/providers', {
+  const response = await fetch(`${API_URL}/questions/providers`, {
     headers: token ? { 'Authorization': `Bearer ${token}` } : {}
   })
   const data = await response.json()
@@ -13,7 +14,7 @@ export const getAIProviders = async () => {
 
 // Generate questions from transcript
 export const generateQuestions = async (transcript, config) => {
-  const response = await fetch('/api/questions/generate', {
+  const response = await fetch(`${API_URL}/questions/generate`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

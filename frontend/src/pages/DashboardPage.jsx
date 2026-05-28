@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { API_URL } from '../config.js'
 import useAuthStore from '../stores/authStore'
 import useRoomStore from '../stores/roomStore'
 import useSocketStore from '../stores/socketStore'
@@ -36,7 +37,7 @@ function DashboardPage() {
   const fetchTeacherStats = async () => {
     try {
       // Fetch all rooms
-      const roomsRes = await fetch('/api/rooms', {
+      const roomsRes = await fetch(`${API_URL}/rooms`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const roomsData = await roomsRes.json()
@@ -49,13 +50,13 @@ function DashboardPage() {
       let totalResponses = 0
       
       for (const room of allRooms) {
-        const qRes = await fetch(`/api/questions?roomId=${room._id}`, {
+        const qRes = await fetch(`${API_URL}/questions?roomId=${room._id}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         const qData = await qRes.json()
         totalPolls += (qData.questions || []).length
         
-        const rRes = await fetch(`/api/responses/stats/room/${room._id}`, {
+        const rRes = await fetch(`${API_URL}/responses/stats/room/${room._id}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         const rData = await rRes.json()

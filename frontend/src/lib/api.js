@@ -1,6 +1,5 @@
-import useAuthStore from '../stores/authStore'
-
-const API_URL = '/api'
+import { API_URL } from '../config.js'
+import useAuthStore from '../stores/authStore.js'
 
 const getHeaders = () => {
   const { token } = useAuthStore.getState()
@@ -47,11 +46,11 @@ export const api = {
 
   async handleResponse(response) {
     const data = await response.json()
-    
+
     if (!response.ok) {
       throw new Error(data.error || data.message || 'Request failed')
     }
-    
+
     return data
   }
 }

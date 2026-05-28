@@ -6,6 +6,7 @@ import useRoomStore from '../stores/roomStore'
 import Sidebar from '../components/Sidebar'
 import ThemeToggle from '../components/ThemeToggle'
 import ProfileDropdown from '../components/ProfileDropdown'
+import { API_URL } from '../config.js'
 
 function StudentDashboard() {
   const navigate = useNavigate()
@@ -32,7 +33,7 @@ function StudentDashboard() {
 
   const fetchStudentStats = async () => {
     try {
-      const res = await fetch(`/api/responses/stats/student/${user._id}`, {
+      const res = await fetch(`${API_URL}/responses/stats/student/${user._id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await res.json()

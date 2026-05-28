@@ -7,6 +7,7 @@ import Sidebar from '../components/Sidebar'
 import ThemeToggle from '../components/ThemeToggle'
 import ProfileDropdown from '../components/ProfileDropdown'
 import Leaderboard from '../components/Leaderboard'
+import { API_URL } from '../config.js'
 
 function StudentRoomPage() {
   const { roomCode } = useParams()
@@ -163,7 +164,7 @@ function StudentRoomPage() {
     }
     try {
       console.log('[StudentRoom] Fetching past responses for room:', roomId, 'student:', studentId)
-      const response = await fetch(`/api/responses/room/${roomId}/student/${studentId}`, {
+      const response = await fetch(`${API_URL}/responses/room/${roomId}/student/${studentId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -204,7 +205,7 @@ function StudentRoomPage() {
 
     // Save to MongoDB - wait for it to complete before fetching past responses
     try {
-      const saveResponse = await fetch('/api/responses', {
+      const saveResponse = await fetch(`${API_URL}/responses`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

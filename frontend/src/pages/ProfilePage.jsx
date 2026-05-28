@@ -5,6 +5,7 @@ import Sidebar from '../components/Sidebar'
 import ThemeToggle from '../components/ThemeToggle'
 import ProfileDropdown from '../components/ProfileDropdown'
 import PasswordInput from '../components/PasswordInput'
+import { API_URL } from '../config.js'
 
 function ProfilePage() {
   const navigate = useNavigate()
@@ -114,7 +115,7 @@ function ProfilePage() {
     setIsSaving(true)
 
     try {
-      const response = await fetch('/api/auth/profile', {
+      const response = await fetch(`${API_URL}/auth/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -189,7 +190,7 @@ function ProfilePage() {
 
     setIsPasswordLoading(true)
     try {
-      const response = await fetch('/api/auth/password', {
+      const response = await fetch(`${API_URL}/auth/password`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

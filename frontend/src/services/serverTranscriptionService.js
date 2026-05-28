@@ -1,6 +1,6 @@
 import useAuthStore from '../stores/authStore'
 
-const API_URL = '/api'
+import { API_URL } from '../config.js'
 
 // Transcribe audio using server-side Whisper
 export const transcribeAudio = async (audioBlob) => {

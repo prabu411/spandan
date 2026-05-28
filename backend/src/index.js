@@ -21,6 +21,9 @@ import './models/index.js'
 
 dotenv.config()
 
+const BASE_PATH = process.env.BASE_PATH || ''
+const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:3001').split(',').map(s => s.trim())
+
 // Request timeout middleware - defined BEFORE use due to hoisting
 const requestTimeout = (req, res, next) => {
   // Set a 30-second timeout for all requests
@@ -44,7 +47,13 @@ const app = express()
 const httpServer = createServer(app)
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: (origin, callback) => {
+      if (!origin || CORS_ORIGINS.includes(origin) || origin.startsWith('http://localhost')) {
+        callback(null, true)
+      } else {
+        callback(new Error('Not allowed by CORS'))
+      }
+    },
     methods: ['GET', 'POST']
   }
 })

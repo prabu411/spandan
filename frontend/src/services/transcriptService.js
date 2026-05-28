@@ -1,6 +1,6 @@
 import useAuthStore from '../stores/authStore'
 
-const API_URL = '/api'
+import { API_URL } from '../config.js'
 
 // Save transcript to backend
 export const saveTranscript = async (roomId, segmentIndex, text, duration = 0) => {

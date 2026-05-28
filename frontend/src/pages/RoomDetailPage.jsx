@@ -14,6 +14,7 @@ import RoomSettingsModal from '../components/RoomSettingsModal'
 import Leaderboard from '../components/Leaderboard'
 import { saveTranscript } from '../services/transcriptService'
 import { transcribeAudio, getTranscriptionStatus, convertWebMToWav } from '../services/serverTranscriptionService'
+import { API_URL } from '../config.js'
 
 function RoomDetailPage() {
   const { roomId } = useParams()
@@ -371,7 +372,7 @@ function RoomDetailPage() {
   const generateQuestionsFromText = async (text, segmentIndex) => {
     return new Promise((resolve, reject) => {
       setIsGeneratingQuestions(true)
-      fetch('/api/questions/generate', {
+      fetch(`${API_URL}/questions/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -420,7 +421,7 @@ function RoomDetailPage() {
         ? { MCQ: 0, TF: 100, MSQ: 0 }
         : (roomSettings.questionTypeMix || { MCQ: 50, TF: 30, MSQ: 20 })
       
-      const response = await fetch('/api/questions/generate', {
+      const response = await fetch(`${API_URL}/questions/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -484,7 +485,7 @@ function RoomDetailPage() {
 
   const loadQuestions = async (rid) => {
     try {
-      const response = await fetch(`/api/questions?roomId=${rid}`, {
+      const response = await fetch(`${API_URL}/questions?roomId=${rid}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -496,7 +497,7 @@ function RoomDetailPage() {
         }
       }
       // Also load answer counts
-      const countsRes = await fetch(`/api/responses/counts/${rid}`, {
+      const countsRes = await fetch(`${API_URL}/responses/counts/${rid}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (countsRes.ok) {
@@ -674,7 +675,7 @@ function RoomDetailPage() {
 
   const handleApproveQuestion = async (question) => {
     try {
-      const response = await fetch('/api/questions', {
+      const response = await fetch(`${API_URL}/questions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -717,7 +718,7 @@ function RoomDetailPage() {
   // Handle approve from TextQuestionApprovalPopup (text-based questions)
   const handleTextQuestionApprove = async (question) => {
     try {
-      const response = await fetch('/api/questions', {
+      const response = await fetch(`${API_URL}/questions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -763,7 +764,7 @@ function RoomDetailPage() {
 
   const handleCreateQuestion = async (questionData) => {
     try {
-      const response = await fetch('/api/questions', {
+      const response = await fetch(`${API_URL}/questions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1072,7 +1073,7 @@ function RoomDetailPage() {
                   setRoomSettings(newSettings)
                   // Persist settings to backend
                   try {
-                    await fetch(`/api/rooms/${room._id}`, {
+                    await fetch(`${API_URL}/rooms/${room._id}`, {
                       method: 'PUT',
                       headers: {
                         'Content-Type': 'application/json',

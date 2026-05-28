@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-
-const API_URL = '/api'
+import { API_URL } from '../config.js'
 
 export const useAuthStore = create(
   persist(

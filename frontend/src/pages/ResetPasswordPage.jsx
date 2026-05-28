@@ -4,6 +4,7 @@ import SpandanIcon from '../components/SpandanIcon'
 import PasswordInput from '../components/PasswordInput'
 import ThemeToggle from '../components/ThemeToggle'
 import useThemeStore from '../stores/themeStore'
+import { API_URL } from '../config.js'
 
 function ResetPasswordPage() {
   const navigate = useNavigate()
@@ -46,7 +47,7 @@ function ResetPasswordPage() {
 
     setIsLoading(true)
     try {
-      const response = await fetch('/api/auth/reset-password', {
+      const response = await fetch(`${API_URL}/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, password: formData.password })

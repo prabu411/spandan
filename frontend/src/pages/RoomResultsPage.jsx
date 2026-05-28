@@ -5,6 +5,7 @@ import useRoomStore from '../stores/roomStore'
 import Sidebar from '../components/Sidebar'
 import ThemeToggle from '../components/ThemeToggle'
 import ProfileDropdown from '../components/ProfileDropdown'
+import { API_URL } from '../config.js'
 
 function RoomResultsPage() {
   const { roomId } = useParams()
@@ -34,7 +35,7 @@ function RoomResultsPage() {
     setIsLoading(true)
     try {
       // Fetch room details
-      const roomRes = await fetch(`/api/rooms/${roomId}`, {
+      const roomRes = await fetch(`${API_URL}/rooms/${roomId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const roomData = await roomRes.json()
@@ -43,7 +44,7 @@ function RoomResultsPage() {
       }
 
       // Fetch questions for this room
-      const qRes = await fetch(`/api/questions?roomId=${roomId}`, {
+      const qRes = await fetch(`${API_URL}/questions?roomId=${roomId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const qData = await qRes.json()
@@ -51,7 +52,7 @@ function RoomResultsPage() {
 
       if (user?.role === 'student') {
         // Student: fetch their own responses (includes questions with answers)
-        const studentRes = await fetch(`/api/responses/room/${roomId}/student/${user._id}`, {
+        const studentRes = await fetch(`${API_URL}/responses/room/${roomId}/student/${user._id}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         const studentData = await studentRes.json()
@@ -81,7 +82,7 @@ function RoomResultsPage() {
         setResponses(responsesData)
         
         // Fetch leaderboard to get student's rank
-        const leaderboardRes = await fetch(`/api/responses/leaderboard/${roomId}`, {
+        const leaderboardRes = await fetch(`${API_URL}/responses/leaderboard/${roomId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         const leaderboardData = await leaderboardRes.json()
@@ -102,7 +103,7 @@ function RoomResultsPage() {
         setQuestions(roomQuestions)
         
         // Teacher: fetch full room stats once
-        const rRes = await fetch(`/api/responses/stats/room/${roomId}`, {
+        const rRes = await fetch(`${API_URL}/responses/stats/room/${roomId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         const rData = await rRes.json()

@@ -6,6 +6,7 @@ import useSocketStore from '../stores/socketStore'
 import PasswordInput from '../components/PasswordInput'
 import ThemeToggle from '../components/ThemeToggle'
 import useThemeStore from '../stores/themeStore'
+import { API_URL } from '../config.js'
 
 // Password requirements for registration
 const PASSWORD_REQUIREMENTS = [
@@ -114,7 +115,7 @@ function AuthPage() {
     setForgotPasswordMsg('')
     setForgotPasswordLoading(true)
     try {
-      const res = await fetch('/api/auth/forgot-password', {
+      const res = await fetch(`${API_URL}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: forgotPasswordEmail })
