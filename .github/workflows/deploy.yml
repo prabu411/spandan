@@ -80,6 +80,9 @@ jobs:
 
             cd ..
 
+            echo "==> Restarting backend..."
+            sudo systemctl restart spandan-backend.service
+            
             echo "==> Restarting spandan service..."
             sudo systemctl restart spandan.service
 
