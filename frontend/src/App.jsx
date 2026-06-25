@@ -103,11 +103,11 @@ function App() {
         // Set auth state
         setAuth(spandanData.user, spandanData.token)
 
-        // Redirect to correct dashboard using window.location
+        // Redirect to correct dashboard in a new tab
         const dashboard = spandanData.user.role === 'teacher' ? '/teacher' : '/student'
         const redirectUrl = `${window.location.origin}/spandan${dashboard}`
-        console.log('[Spandan] Redirecting to:', redirectUrl)
-        window.location.href = redirectUrl
+        console.log('[Spandan] Opening dashboard:', redirectUrl)
+        window.open(redirectUrl, '_blank')
       } catch (error) {
         console.error('[Spandan] Samagama session check failed:', error)
       } finally {
