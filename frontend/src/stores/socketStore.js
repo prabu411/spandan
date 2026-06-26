@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { io } from 'socket.io-client'
-import { SOCKET_PATH, SOCKET_URL } from '../config.js'
+import { SOCKET_URL } from '../config.js'
 
 export const useSocketStore = create((set, get) => ({
   socket: null,
@@ -17,7 +17,7 @@ export const useSocketStore = create((set, get) => ({
 
     const socket = io(SOCKET_URL, {
       auth: { token },
-      path: SOCKET_PATH,
+      path: '/spandan/socket.io',
       transports: ['websocket', 'polling']
     })
 
