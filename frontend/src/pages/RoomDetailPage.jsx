@@ -145,18 +145,15 @@ function RoomDetailPage() {
     }
   }, [socket])
 
-  // Listen for response:new events to update answer counts
+  // Phase 1: answer counts now arrive (absolute, server-computed) inside the throttled
+  // 'leaderboard:updated' payload, instead of a per-response 'response:new' increment.
   useEffect(() => {
     if (!socket) return
-    const handleNewResponse = (data) => {
-      console.log('[DEBUG] New response received:', data)
-      setAnswerCounts(prev => ({
-        ...prev,
-        [data.questionId]: (prev[data.questionId] || 0) + 1
-      }))
+    const handleLiveUpdate = (payload) => {
+      if (payload?.counts) setAnswerCounts(payload.counts)
     }
-    socket.on('response:new', handleNewResponse)
-    return () => socket.off('response:new', handleNewResponse)
+    socket.on('leaderboard:updated', handleLiveUpdate)
+    return () => socket.off('leaderboard:updated', handleLiveUpdate)
   }, [socket])
 
   // Listen for question launch events to show timer to teacher

@@ -71,6 +71,91 @@ const io = new Server(httpServer, {
 // Make io accessible to routes
 app.set('io', io)
 
+// --- Throttled, server-authoritative live room updates (Phase 1) ---
+// A live question can draw ~1000 answers in seconds. Previously each answer made
+// every client re-fetch the leaderboard (~N^2 DB hits). Instead, the REST submit
+// handler calls schedule(roomId); a burst coalesces into ONE recompute + broadcast
+// per room per interval, and the top-N payload is pushed so students never refetch.
+// (Per-process state — fine for a single instance; move to Redis pub/sub when
+// scaling horizontally, see scalability audit Phase 2.)
+const LIVE_THROTTLE_MS = Number(process.env.LIVE_UPDATE_THROTTLE_MS) || 1500
+const LEADERBOARD_TOP_N = Number(process.env.LEADERBOARD_TOP_N) || 20
+const roomLive = new Map() // roomId(str) -> { timer, roomCode, rankByStudent: Map, total }
+
+async function computeAndBroadcast(roomId) {
+  try {
+    const Response = (await import('./models/Response.js')).default
+    const User = (await import('./models/User.js')).default
+    const Room = (await import('./models/Room.js')).default
+    const roomObjId = new mongoose.Types.ObjectId(roomId)
+
+    // Points per student (ranked) + per-question answer counts, in two aggregations.
+    const [ranked, countAgg] = await Promise.all([
+      Response.aggregate([
+        { $match: { roomId: roomObjId } },
+        { $group: { _id: '$studentId', totalPoints: { $sum: '$points' }, correctCount: { $sum: { $cond: ['$isCorrect', 1, 0] } }, totalAnswered: { $sum: 1 } } },
+        { $sort: { totalPoints: -1 } }
+      ]),
+      Response.aggregate([
+        { $match: { roomId: roomObjId } },
+        { $group: { _id: '$questionId', count: { $sum: 1 } } }
+      ])
+    ])
+
+    const users = await User.find({ _id: { $in: ranked.map(e => e._id) } }).select('name email').lean()
+    const nameById = new Map(users.map(u => [u._id.toString(), u.name || u.email || 'Unknown Student']))
+
+    const rankByStudent = new Map()
+    const full = ranked.map((e, i) => {
+      const sid = e._id.toString()
+      rankByStudent.set(sid, i + 1)
+      return { rank: i + 1, studentId: sid, studentName: nameById.get(sid) || 'Unknown Student', totalPoints: e.totalPoints, correctCount: e.correctCount, totalAnswered: e.totalAnswered }
+    })
+    const counts = {}
+    countAgg.forEach(c => { counts[c._id.toString()] = c.count })
+
+    const state = roomLive.get(roomId) || {}
+    state.rankByStudent = rankByStudent
+    state.total = full.length
+    if (!state.roomCode) {
+      const room = await Room.findById(roomId).select('code').lean()
+      state.roomCode = room?.code || null
+    }
+    roomLive.set(roomId, state)
+
+    if (state.roomCode) {
+      io.to(state.roomCode).emit('leaderboard:updated', {
+        leaderboard: full.slice(0, LEADERBOARD_TOP_N),
+        totalParticipants: full.length,
+        counts
+      })
+    }
+  } catch (err) {
+    console.error('computeAndBroadcast error:', err.message)
+  }
+}
+
+function scheduleRoomLiveUpdate(roomId) {
+  const id = String(roomId)
+  let state = roomLive.get(id)
+  if (!state) { state = { timer: null, roomCode: null, rankByStudent: new Map(), total: 0 }; roomLive.set(id, state) }
+  if (state.timer) return // already scheduled; the trailing run will pick up the latest state
+  state.timer = setTimeout(() => {
+    const s = roomLive.get(id)
+    if (s) s.timer = null
+    computeAndBroadcast(id)
+  }, LIVE_THROTTLE_MS)
+}
+
+// Last-computed rank for a student (for "rank on submit"); may be up to one interval stale.
+function getCachedStudentRank(roomId, studentId) {
+  const state = roomLive.get(String(roomId))
+  if (!state) return { rank: null, totalParticipants: null }
+  return { rank: state.rankByStudent?.get(String(studentId)) ?? null, totalParticipants: state.total ?? null }
+}
+
+app.set('liveUpdates', { schedule: scheduleRoomLiveUpdate, getRank: getCachedStudentRank })
+
 // Trust proxy (for rate limiting behind nginx)
 app.set('trust proxy', 1)
 
@@ -246,25 +331,11 @@ io.on('connection', (socket) => {
     }
   })
 
-  // Submit response (real-time)
-  socket.on('response:submit', (data) => {
-    io.to(data.roomCode).emit('response:new', {
-      questionId: data.questionId,
-      studentId: data.studentId,
-      selectedOption: data.selectedOption,
-      responseTime: data.responseTime
-    })
-  })
-
-  // Points update event (emitted after response is saved with calculated points)
-  socket.on('points:update', (data) => {
-    io.to(data.roomCode).emit('points:updated', {
-      questionId: data.questionId,
-      studentId: data.studentId,
-      points: data.points,
-      isCorrect: data.isCorrect
-    })
-  })
+  // NOTE: the client-driven 'response:submit', 'points:update' and 'leaderboard:update'
+  // handlers were removed in Phase 1. They let clients forge points/answers and caused a
+  // ~N^2 leaderboard-refetch storm. Live leaderboard/answer-count updates are now emitted
+  // server-side (throttled) from the authenticated REST submit handler — see the
+  // scheduleRoomLiveUpdate() broadcaster above and routes/responses.js.
 
   // Question events
   socket.on('question:start', (data) => {
@@ -293,11 +364,6 @@ io.on('connection', (socket) => {
     } else {
       console.error('new_question event missing roomCode or question:', data)
     }
-  })
-
-  // Leaderboard update
-  socket.on('leaderboard:update', (data) => {
-    io.to(data.roomCode).emit('leaderboard:updated', data)
   })
 
   socket.on('disconnect', () => {

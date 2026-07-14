@@ -81,22 +81,34 @@ router.post('/', authorize('student'), async (req, res) => {
       points
     })
 
-    // Check if already responded to prevent duplicates
-    const existingResponse = await Response.findOne({ roomId, questionId, studentId })
-    if (existingResponse) {
-      return res.status(409).json({ 
-        success: false, 
-        error: 'Already responded to this question',
-        existingResponse: {
-          selectedOption: existingResponse.selectedOption,
-          selectedOptions: existingResponse.selectedOptions,
-          isCorrect: existingResponse.isCorrect,
-          points: existingResponse.points
-        }
-      })
+    // Rely on the unique index {roomId,questionId,studentId} to reject duplicates instead
+    // of a separate findOne pre-check (which was both an extra query on the hot path and a
+    // check-then-act race). A duplicate insert throws E11000, which we map to 409.
+    try {
+      await response.save()
+    } catch (saveErr) {
+      if (saveErr.code === 11000) {
+        const existingResponse = await Response.findOne({ roomId, questionId, studentId })
+        return res.status(409).json({
+          success: false,
+          error: 'Already responded to this question',
+          existingResponse: existingResponse ? {
+            selectedOption: existingResponse.selectedOption,
+            selectedOptions: existingResponse.selectedOptions,
+            isCorrect: existingResponse.isCorrect,
+            points: existingResponse.points
+          } : undefined
+        })
+      }
+      throw saveErr
     }
 
-    await response.save()
+    // Trigger the throttled, server-authoritative live update for this room (leaderboard +
+    // answer counts) and return this student's current rank ("rank on submit"), so clients
+    // never poll the leaderboard endpoint during a live session.
+    const live = req.app.get('liveUpdates')
+    live?.schedule(roomId)
+    const rankInfo = live?.getRank(roomId, studentId) || {}
 
     res.status(201).json({
       success: true,
@@ -104,7 +116,9 @@ router.post('/', authorize('student'), async (req, res) => {
         ...response.toObject(),
         isCorrect,
         points
-      }
+      },
+      rank: rankInfo.rank ?? null,
+      totalParticipants: rankInfo.totalParticipants ?? null
     })
   } catch (error) {
     console.error('Error saving response:', error)
