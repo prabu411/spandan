@@ -29,6 +29,19 @@ function StudentRoomPage() {
   const [timeWarning, setTimeWarning] = useState('')
   const [showTop3Popup, setShowTop3Popup] = useState(false)
   const [top3Students, setTop3Students] = useState([])
+
+  // Peer Instruction states
+  const [isPeerRound, setIsPeerRound] = useState(false)
+  const [currentRound, setCurrentRound] = useState(1)
+  const [peerRoundResults, setPeerRoundResults] = useState(null)
+
+  // Exit Ticket states
+  const [activeExitTicket, setActiveExitTicket] = useState(null)
+  const [exitFeedback, setExitFeedback] = useState('')
+  const [exitPace, setExitPace] = useState('just-right')
+  const [exitUnderstanding, setExitUnderstanding] = useState(3)
+  const [exitSubmitted, setExitSubmitted] = useState(false)
+  const [exitSubmitting, setExitSubmitting] = useState(false)
   const [timeLeft, setTimeLeft] = useState(0)
   const [results, setResults] = useState(null)
   // Past responses loaded from MongoDB - no sessionStorage needed
@@ -57,6 +70,9 @@ function StudentRoomPage() {
       setSubmitted(false)
       setTimeWarning('')
       setShowTop3Popup(false)
+      setIsPeerRound(false)
+      setCurrentRound(1)
+      setPeerRoundResults(null)
       setTimeLeft(data.timer || 30)
       
       if (data.question && data.question.timeToAnswer) {
@@ -117,6 +133,26 @@ function StudentRoomPage() {
       setCurrentQuestion(null)
     }
 
+    const handlePeerDiscussionStarted = (data) => {
+      setIsPeerRound(true)
+      setCurrentRound(2)
+      setPeerRoundResults(data.results || null)
+      setSubmitted(false)
+      setTimeWarning('')
+      setTimeLeft(data.timer || 30)
+    }
+
+    const handleExitTicketLaunched = (data) => {
+      setActiveExitTicket({
+        _id: data.ticketId,
+        prompt: data.prompt
+      })
+      setExitFeedback('')
+      setExitPace('just-right')
+      setExitUnderstanding(3)
+      setExitSubmitted(false)
+    }
+
     const handleNewQuestion = (question) => {
       // Handle manually created questions from teacher
       // Clear any existing timer
@@ -130,6 +166,9 @@ function StudentRoomPage() {
       setSubmitted(false)
       setTimeWarning('')
       setShowTop3Popup(false)
+      setIsPeerRound(false)
+      setCurrentRound(1)
+      setPeerRoundResults(null)
       setTimeLeft(question.timeToAnswer || 30)
       
       timerIntervalRef.current = setInterval(() => {
@@ -149,20 +188,70 @@ function StudentRoomPage() {
       }, 1000)
     }
 
-    socket.on('question:started', handleQuestionStarted)
-    socket.on('question:ended', handleQuestionEnded)
-    socket.on('new_question', handleNewQuestion)
-    socket.on('room:ended', () => {
-      navigate(`/student/room/${room?._id}/results`)
-    })
-
-    return () => {
-      socket.off('question:started', handleQuestionStarted)
-      socket.off('question:ended', handleQuestionEnded)
-      socket.off('new_question', handleNewQuestion)
-      socket.off('room:ended')
-    }
+      socket.on('question:started', handleQuestionStarted)
+      socket.on('question:ended', handleQuestionEnded)
+      socket.on('question:peer-discussion-started', handlePeerDiscussionStarted)
+      socket.on('exit-ticket:launched', handleExitTicketLaunched)
+      socket.on('new_question', handleNewQuestion)
+      
+      socket.on('room:ended', () => {
+        navigate(`/student/room/${room?._id}/results`)
+      })
+      
+      return () => {
+        socket.off('question:started', handleQuestionStarted)
+        socket.off('question:ended', handleQuestionEnded)
+        socket.off('question:peer-discussion-started', handlePeerDiscussionStarted)
+        socket.off('exit-ticket:launched', handleExitTicketLaunched)
+        socket.off('new_question', handleNewQuestion)
+        socket.off('room:ended')
+      }
   }, [socket, navigate, room?._id])
+
+  const fetchActiveExitTicket = async (rId) => {
+    try {
+      const res = await fetch(`${API_URL}/exit-tickets/${rId}/active`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (data.success && data.ticket) {
+        setActiveExitTicket(data.ticket)
+      }
+    } catch (err) {
+      console.error('Error fetching exit ticket:', err)
+    }
+  }
+
+  const handleExitTicketSubmit = async (e) => {
+    e.preventDefault()
+    if (!exitFeedback.trim() || !room || !activeExitTicket) return
+    setExitSubmitting(true)
+    try {
+      const res = await fetch(`${API_URL}/exit-tickets/${room._id}/respond/${activeExitTicket._id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          feedback: exitFeedback.trim(),
+          pace: exitPace,
+          understanding: exitUnderstanding
+        })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setExitSubmitted(true)
+        setTimeout(() => {
+          setActiveExitTicket(null)
+        }, 1500)
+      }
+    } catch (err) {
+      console.error('Error submitting exit ticket:', err)
+    } finally {
+      setExitSubmitting(false)
+    }
+  }
 
   const joinSession = async () => {
     setIsLoading(true)
@@ -170,6 +259,7 @@ function StudentRoomPage() {
       const roomData = await joinRoomByCode(roomCode)
       setRoom(roomData)
       setRoomThreshold(roomData.settings?.thresholdTime !== undefined ? roomData.settings.thresholdTime : 15)
+      fetchActiveExitTicket(roomData._id)
       if (user?._id && socket) {
         // Join via socket - room:joined confirms the student was added to RoomMember
         return new Promise((resolve, reject) => {
@@ -243,7 +333,8 @@ function StudentRoomPage() {
       selectedOptions,
       timeToAnswer: tta,
       timeLeft,
-      responseTime
+      responseTime,
+      round: currentRound
     })
 
     // Save to MongoDB - wait for it to complete before fetching past responses
@@ -259,7 +350,8 @@ function StudentRoomPage() {
           questionId,
           studentId: user._id,
           selectedOptions,
-          responseTime
+          responseTime,
+          round: currentRound
         })
       })
       const saveData = await saveResponse.json()
@@ -616,6 +708,43 @@ function StudentRoomPage() {
           ) : (
             /* Waiting State - Show Passed Questions */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              
+              {/* Peer discussion results chart */}
+              {isPeerRound && peerRoundResults && (
+                <div style={{
+                  background: 'rgba(59, 130, 246, 0.1)',
+                  border: '1.5px solid #3b82f6',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  marginBottom: '20px',
+                  textAlign: 'left'
+                }}>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#3b82f6', fontWeight: '700' }}>
+                    🗣️ Round 2: Peer Discussion (Eric Mazur's Method)
+                  </h4>
+                  <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                    Discuss your thoughts with a classmate! The histogram below shows the classroom's Round 1 answers. Verify your choice and resubmit.
+                  </p>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {Object.entries(peerRoundResults.answerCounts || {}).map(([optIdx, count]) => {
+                      const total = peerRoundResults.totalResponses || 1
+                      const percentage = Math.round((count / total) * 100)
+                      const letter = String.fromCharCode(65 + parseInt(optIdx))
+                      return (
+                        <div key={optIdx} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: '600', width: '16px', color: 'var(--text-primary)' }}>{letter}</span>
+                          <div style={{ flex: 1, height: '8px', background: 'var(--border-color)', borderRadius: '4px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${percentage}%`, background: '#3b82f6', borderRadius: '4px' }} />
+                          </div>
+                          <span style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '36px', textAlign: 'right', fontWeight: '600' }}>{percentage}%</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              
               {/* Active question area placeholder */}
               <div style={{
                 background: 'var(--bg-card)',
@@ -902,6 +1031,158 @@ function StudentRoomPage() {
               to { transform: scale(1); opacity: 1; }
             }
           `}</style>
+        </div>
+      )}
+
+      {/* Exit Ticket Overlay Modal */}
+      {activeExitTicket && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.75)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 3500,
+          fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif'
+        }}>
+          <div style={{
+            background: 'var(--bg-card)',
+            borderRadius: '24px',
+            padding: '32px',
+            width: '450px',
+            boxShadow: '0 25px 80px rgba(0,0,0,0.5)',
+            border: '1px solid var(--border-color)',
+            textAlign: 'left',
+            animation: 'scaleIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+          }}>
+            <h2 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 8px' }}>
+              📝 Class Exit Ticket
+            </h2>
+            <p style={{ fontSize: '12px', color: '#10b981', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 16px' }}>
+              ✓ Anonymous Feedback
+            </p>
+
+            {exitSubmitted ? (
+              <div style={{ textAlign: 'center', padding: '30px 0' }}>
+                <span style={{ fontSize: '48px' }}>🎉</span>
+                <h3 style={{ marginTop: '16px', color: '#10b981' }}>Feedback Submitted!</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Thank you for helping us improve this class.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleExitTicketSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ background: 'var(--bg-primary)', padding: '12px 16px', borderRadius: '12px', borderLeft: '4px solid #3b82f6', marginBottom: '4px' }}>
+                  <p style={{ margin: 0, fontSize: '14px', fontWeight: '500', color: 'var(--text-primary)', lineHeight: '1.4' }}>
+                    {activeExitTicket.prompt}
+                  </p>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>Your Response</label>
+                  <textarea
+                    required
+                    value={exitFeedback}
+                    onChange={(e) => setExitFeedback(e.target.value)}
+                    placeholder="Write what is still unclear or anything you found interesting..."
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-primary)',
+                      color: 'var(--text-primary)',
+                      fontSize: '13px',
+                      outline: 'none',
+                      minHeight: '80px',
+                      fontFamily: 'inherit',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>Understanding of today's topics</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <input
+                      type="range"
+                      min="1"
+                      max="5"
+                      value={exitUnderstanding}
+                      onChange={(e) => setExitUnderstanding(parseInt(e.target.value))}
+                      style={{ flex: 1, cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: '14px', fontWeight: '700', color: '#3b82f6', width: '28px', textAlign: 'center' }}>
+                      {exitUnderstanding}/5
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>Class Pace</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {['too-fast', 'just-right', 'too-slow'].map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setExitPace(p)}
+                        style={{
+                          flex: 1,
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: `1.5px solid ${exitPace === p ? '#3b82f6' : 'var(--border-color)'}`,
+                          background: exitPace === p ? 'rgba(59, 130, 246, 0.1)' : 'var(--bg-primary)',
+                          color: exitPace === p ? '#3b82f6' : 'var(--text-secondary)',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          textTransform: 'capitalize',
+                          cursor: 'pointer',
+                          outline: 'none'
+                        }}
+                      >
+                        {p.replace('-', ' ')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveExitTicket(null)}
+                    style={{
+                      flex: 1,
+                      padding: '10px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)',
+                      background: 'transparent',
+                      color: 'var(--text-secondary)',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Skip
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={exitSubmitting}
+                    style={{
+                      flex: 2,
+                      padding: '10px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #10b981, #059669)',
+                      color: 'white',
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)'
+                    }}
+                  >
+                    {exitSubmitting ? 'Submitting...' : 'Submit Anonymously'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
         </div>
       )}
     </div>

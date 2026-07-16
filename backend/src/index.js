@@ -16,6 +16,7 @@ import transcriptionRoutes from './routes/transcription.js'
 import transcriptRoutes from './routes/transcripts.js'
 import responseRoutes from './routes/responses.js'
 import issuesRoutes from './routes/issues.js'
+import exitTicketRoutes from './routes/exittickets.js'
 
 // Import models for reference
 import './models/index.js'
@@ -123,6 +124,7 @@ app.use('/api/transcription', transcriptionRoutes)
 app.use('/api/transcripts', transcriptRoutes)
 app.use('/api/responses', responseRoutes)
 app.use('/api/issues', issuesRoutes)
+app.use('/api/exit-tickets', exitTicketRoutes)
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -277,6 +279,21 @@ io.on('connection', (socket) => {
     io.to(data.roomCode).emit('question:ended', {
       questionId: data.questionId,
       results: data.results
+    })
+  })
+
+  socket.on('question:peer-discussion', (data) => {
+    io.to(data.roomCode).emit('question:peer-discussion-started', {
+      questionId: data.questionId,
+      timer: data.timer || 30,
+      results: data.results
+    })
+  })
+
+  socket.on('exit-ticket:launch', (data) => {
+    io.to(data.roomCode).emit('exit-ticket:launched', {
+      ticketId: data.ticketId,
+      prompt: data.prompt
     })
   })
 

@@ -119,6 +119,20 @@ export const useSocketStore = create((set, get) => ({
     if (socket) {
       socket.emit('question:end', data)
     }
+  },
+
+  startPeerDiscussion: (data) => {
+    const { socket } = get()
+    if (socket) {
+      socket.emit('question:peer-discussion', data)
+    }
+  },
+
+  launchExitTicket: (data) => {
+    const { socket } = get()
+    if (socket) {
+      socket.emit('exit-ticket:launch', data)
+    }
   }
 }))
 

@@ -70,6 +70,8 @@ router.post('/', authorize('student'), async (req, res) => {
     }
     // Incorrect answers get 0 points
 
+    const round = req.body.round || 1
+
     const response = new Response({
       roomId,
       questionId,
@@ -78,20 +80,22 @@ router.post('/', authorize('student'), async (req, res) => {
       selectedOptions, // Store all selections for MSQ
       isCorrect,
       responseTime: respTime,
-      points
+      points,
+      round
     })
 
-    // Check if already responded to prevent duplicates
-    const existingResponse = await Response.findOne({ roomId, questionId, studentId })
+    // Check if already responded to prevent duplicates in this round
+    const existingResponse = await Response.findOne({ roomId, questionId, studentId, round })
     if (existingResponse) {
       return res.status(409).json({ 
         success: false, 
-        error: 'Already responded to this question',
+        error: `Already responded to this question in Round ${round}`,
         existingResponse: {
           selectedOption: existingResponse.selectedOption,
           selectedOptions: existingResponse.selectedOptions,
           isCorrect: existingResponse.isCorrect,
-          points: existingResponse.points
+          points: existingResponse.points,
+          round: existingResponse.round
         }
       })
     }
@@ -359,17 +363,29 @@ router.get('/stats/room/:roomId', async (req, res) => {
     const questionStats = await Question.find({ roomId }).lean()
     const stats = await Promise.all(questionStats.map(async (q) => {
       const responses = await Response.find({ roomId, questionId: q._id })
-      const answerCounts = {}
-      let correctCount = 0
       
-      q.options.forEach((opt, idx) => {
-        const countForOption = responses.filter(r => r.selectedOption === idx).length
-        answerCounts[idx] = countForOption
-        // If this option is correct, add to correctCount
-        if (opt.isCorrect) {
-          correctCount += countForOption
+      const round1Responses = responses.filter(r => r.round === 1 || !r.round)
+      const round2Responses = responses.filter(r => r.round === 2)
+
+      const computeRoundStats = (roundRes) => {
+        const counts = {}
+        let corrects = 0
+        q.options.forEach((opt, idx) => {
+          const optCount = roundRes.filter(r => r.selectedOption === idx).length
+          counts[idx] = optCount
+          if (opt.isCorrect) {
+            corrects += optCount
+          }
+        })
+        return {
+          total: roundRes.length,
+          correctCount: corrects,
+          answerCounts: counts
         }
-      })
+      }
+
+      const r1 = computeRoundStats(round1Responses)
+      const r2 = computeRoundStats(round2Responses)
       
       // Get detailed responses sorted chronologically for the submission stack
       const detailedResponses = await Response.find({ roomId, questionId: q._id })
@@ -384,6 +400,7 @@ router.get('/stats/room/:roomId', async (req, res) => {
         isCorrect: r.isCorrect,
         responseTime: r.responseTime,
         points: r.points,
+        round: r.round || 1,
         timestamp: r.createdAt
       }))
       
@@ -391,10 +408,14 @@ router.get('/stats/room/:roomId', async (req, res) => {
         questionId: q._id,
         question: q.question,
         type: q.type,
-        totalResponses: responses.length,
-        correctCount,
-        answerCounts,
-        detailedResponses: details
+        totalResponses: r1.total,
+        correctCount: r1.correctCount,
+        answerCounts: r1.answerCounts,
+        detailedResponses: details,
+        peerInstructionStats: round2Responses.length > 0 ? {
+          round1: r1,
+          round2: r2
+        } : null
       }
     }))
 

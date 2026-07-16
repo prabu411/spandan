@@ -119,7 +119,8 @@ function RoomResultsPage() {
             totalResponses: qStat.totalResponses,
             correctCount: qStat.correctCount || 0,
             answerCounts: qStat.answerCounts || {},
-            detailedResponses: qStat.detailedResponses || []
+            detailedResponses: qStat.detailedResponses || [],
+            peerInstructionStats: qStat.peerInstructionStats || null
           }
         })
         
@@ -306,9 +307,17 @@ function RoomResultsPage() {
                   const isTeacher = user?.role === 'teacher'
                   
                   // Teacher: show class percentage. Student: show their result
-                  const correctRate = isTeacher && qStats.totalResponses > 0 
+                  const correctRate = qStats.totalResponses > 0 
                     ? Math.round((qStats.correctCount / qStats.totalResponses) * 100) 
-                    : q.answered ? (q.isCorrect ? 100 : 0) : null
+                    : 0
+                  
+                  const r1Rate = qStats.peerInstructionStats 
+                    ? Math.round((qStats.peerInstructionStats.round1.correctCount / (qStats.peerInstructionStats.round1.total || 1)) * 100)
+                    : correctRate
+
+                  const r2Rate = qStats.peerInstructionStats 
+                    ? Math.round((qStats.peerInstructionStats.round2.correctCount / (qStats.peerInstructionStats.round2.total || 1)) * 100)
+                    : null
                   
                   return (
                     <div key={q._id} style={{
@@ -434,7 +443,7 @@ function RoomResultsPage() {
                         
                         {/* Question Stats */}
                         <div style={{
-                          minWidth: '120px',
+                          minWidth: '130px',
                           textAlign: 'center',
                           padding: '16px',
                           background: isTeacher 
@@ -443,14 +452,29 @@ function RoomResultsPage() {
                           borderRadius: '12px'
                         }}>
                           {isTeacher ? (
-                            <>
-                              <div style={{ fontSize: '32px', fontWeight: '700', color: correctRate >= 70 ? '#059669' : correctRate >= 40 ? '#d97706' : '#dc2626' }}>
-                                {correctRate !== null ? `${correctRate}%` : '0%'}
+                            qStats.peerInstructionStats ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                                <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '2px' }}>Eric Mazur</div>
+                                <div style={{ fontSize: '13px', fontWeight: '600', color: r1Rate >= 70 ? '#059669' : r1Rate >= 40 ? '#d97706' : '#dc2626' }}>
+                                  Round 1: <strong>{r1Rate}%</strong>
+                                </div>
+                                <div style={{ fontSize: '13px', fontWeight: '600', color: r2Rate >= 70 ? '#059669' : r2Rate >= 40 ? '#d97706' : '#dc2626' }}>
+                                  Round 2: <strong>{r2Rate}%</strong>
+                                </div>
+                                <div style={{ fontSize: '9px', color: 'var(--text-secondary)', marginTop: '4px', textAlign: 'center' }}>
+                                  {qStats.peerInstructionStats.round2.total} discussed
+                                </div>
                               </div>
-                              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                                {qStats.totalResponses || 0} responses
-                              </div>
-                            </>
+                            ) : (
+                              <>
+                                <div style={{ fontSize: '32px', fontWeight: '700', color: correctRate >= 70 ? '#059669' : correctRate >= 40 ? '#d97706' : '#dc2626' }}>
+                                  {correctRate !== null ? `${correctRate}%` : '0%'}
+                                </div>
+                                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                                  {qStats.totalResponses || 0} responses
+                                </div>
+                              </>
+                            )
                           ) : (
                             <>
                               <div style={{ fontSize: '32px', fontWeight: '700', color: q.answered ? (q.isCorrect ? '#059669' : '#dc2626') : '#d97706' }}>

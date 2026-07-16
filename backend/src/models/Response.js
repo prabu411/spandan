@@ -36,6 +36,10 @@ const responseSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  round: {
+    type: Number,
+    default: 1
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -43,7 +47,7 @@ const responseSchema = new mongoose.Schema({
 })
 
 // Index for fast lookups
-responseSchema.index({ roomId: 1, questionId: 1, studentId: 1 }, { unique: true })
+responseSchema.index({ roomId: 1, questionId: 1, studentId: 1, round: 1 }, { unique: true })
 // Index for leaderboard queries
 responseSchema.index({ roomId: 1, studentId: 1, points: -1 })
 

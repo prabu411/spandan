@@ -98,6 +98,113 @@ function RoomDetailPage() {
   const [totalParticipants, setTotalParticipants] = useState(0)
   const [answerCounts, setAnswerCounts] = useState({}) // questionId -> count
 
+  // Custom Peer & Exit Ticket states
+  const [isPeerInstructionEnabled, setIsPeerInstructionEnabled] = useState(false)
+  const [peerRoundState, setPeerRoundState] = useState(0) // 0: inactive, 1: Round 1 active, 2: Round 1 ended/Discussion prompt, 3: Round 2 active
+  const [rightPanelTab, setRightPanelTab] = useState('leaderboard')
+  const [showExitTicketLaunchModal, setShowExitTicketLaunchModal] = useState(false)
+  const [exitTicketPrompt, setExitTicketPrompt] = useState('What was the most important thing you learned today, and what is still unclear?')
+  const [exitTicketAnalytics, setExitTicketAnalytics] = useState([])
+  const [analyticsLoading, setAnalyticsLoading] = useState(false)
+
+  const fetchExitTicketAnalytics = async () => {
+    if (!room) return
+    setAnalyticsLoading(true)
+    try {
+      const res = await fetch(`${API_URL}/exit-tickets/${room._id}/analytics`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (data.success) {
+        setExitTicketAnalytics(data.analytics || [])
+      }
+    } catch (err) {
+      console.error('Error loading exit ticket analytics:', err)
+    } finally {
+      setAnalyticsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (rightPanelTab === 'exittickets' && room) {
+      fetchExitTicketAnalytics()
+    }
+  }, [rightPanelTab, room])
+
+  const handleLaunchExitTicket = async () => {
+    try {
+      const res = await fetch(`${API_URL}/exit-tickets/${room._id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ prompt: exitTicketPrompt })
+      })
+      const data = await res.json()
+      if (data.success && socket) {
+        socket.emit('exit-ticket:launch', {
+          roomCode: room.code,
+          ticketId: data.ticket._id,
+          prompt: data.ticket.prompt
+        })
+        alert('Exit Ticket launched to all students!')
+        setShowExitTicketLaunchModal(false)
+        fetchExitTicketAnalytics()
+      }
+    } catch (err) {
+      console.error('Failed to launch exit ticket:', err)
+    }
+  }
+
+  const handleStartPeerDiscussion = async () => {
+    if (!socket || !activeQuestion || !room) return
+    try {
+      const res = await fetch(`${API_URL}/responses/stats/room/${room._id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (data.success) {
+        const qStat = data.stats?.questionStats?.find(q => q.questionId === activeQuestion._id)
+        const counts = qStat?.answerCounts || {}
+        const total = qStat?.totalResponses || 0
+        
+        socket.emit('question:peer-discussion', {
+          roomCode: room.code,
+          questionId: activeQuestion._id,
+          timer: activeQuestion.timeToAnswer || 30,
+          results: {
+            answerCounts: counts,
+            totalResponses: total
+          }
+        })
+        
+        // Start Round 2 Timer
+        setQuestionTimeLeft(activeQuestion.timeToAnswer || 30)
+        setPeerRoundState(3) // Round 2 active
+        
+        if (questionTimerRef.current) {
+          clearInterval(questionTimerRef.current)
+        }
+        
+        questionTimerRef.current = setInterval(() => {
+          setQuestionTimeLeft(prev => {
+            if (prev <= 1) {
+              clearInterval(questionTimerRef.current)
+              questionTimerRef.current = null
+              setActiveQuestion(null)
+              setPeerRoundState(0)
+              return 0
+            }
+            return prev - 1
+          })
+        }, 1000)
+      }
+    } catch (err) {
+      console.error('Error starting peer discussion:', err)
+    }
+  }
+
   useEffect(() => {
     if (token) {
       setAuthToken(token)
@@ -180,7 +287,15 @@ function RoomDetailPage() {
         if (prev <= 1) {
           clearInterval(questionTimerRef.current)
           questionTimerRef.current = null
-          setActiveQuestion(null)
+          
+          setPeerRoundState(curr => {
+            if (curr === 1) {
+              // Keep activeQuestion set, but timer is 0 - waiting for Peer discussion Round 2 trigger
+              return 2
+            }
+            setActiveQuestion(null)
+            return 0
+          })
           return 0
         }
         return prev - 1
@@ -190,6 +305,11 @@ function RoomDetailPage() {
 
   const handleQuestionLaunched = (data) => {
     console.log('[QUESTION LAUNCHED]', data)
+    const question = data.question || data
+    if (question) {
+      startQuestionTimer(question)
+      setPeerRoundState(isPeerInstructionEnabled ? 1 : 0)
+    }
   }
 
     socket.on('new_question', handleQuestionLaunched)
@@ -1083,6 +1203,38 @@ function RoomDetailPage() {
               </div>
             )}
 
+            {/* Peer Instruction Round 1 Ended - Discussion trigger button */}
+            {activeQuestion && peerRoundState === 2 && (
+              <div style={{
+                padding: '8px 16px',
+                background: 'rgba(245, 158, 11, 0.1)',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                border: '2px solid #f59e0b'
+              }}>
+                <span style={{ fontSize: '13px', color: '#d97706', fontWeight: '600' }}>
+                  Round 1 Completed
+                </span>
+                <button
+                  onClick={handleStartPeerDiscussion}
+                  style={{
+                    padding: '6px 12px',
+                    background: '#f59e0b',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  🗣️ Start Peer Discussion (Round 2)
+                </button>
+              </div>
+            )}
+
             {/* Question Timer Display - Shows when a question is active */}
             {activeQuestion && questionTimeLeft > 0 && (
               <div style={{
@@ -1095,7 +1247,7 @@ function RoomDetailPage() {
                 border: `2px solid ${questionTimeLeft <= 5 ? '#ef4444' : '#10b981'}`
               }}>
                 <span style={{ fontSize: '14px', color: questionTimeLeft <= 5 ? '#ef4444' : '#10b981', fontWeight: '600' }}>
-                  ⏱️ Answer
+                  ⏱️ {peerRoundState === 3 ? 'Round 2' : 'Answer'}
                 </span>
                 <span style={{
                   fontSize: '20px',
@@ -1112,7 +1264,7 @@ function RoomDetailPage() {
                 )}
               </div>
             )}
-            {activeQuestion && questionTimeLeft === 0 && (
+            {activeQuestion && questionTimeLeft === 0 && peerRoundState !== 2 && (
               <div style={{
                 padding: '8px 16px',
                 background: 'rgba(239, 68, 68, 0.1)',
@@ -1126,6 +1278,26 @@ function RoomDetailPage() {
                   ⏱️ Time's Up!
                 </span>
               </div>
+            )}
+
+            {/* Exit Ticket Trigger button for Teacher */}
+            {!isEnded && (
+              <button
+                onClick={() => setShowExitTicketLaunchModal(true)}
+                style={{
+                  padding: '8px 16px',
+                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 10px rgba(16, 185, 129, 0.2)'
+                }}
+              >
+                📝 Launch Exit Ticket
+              </button>
             )}
 
             {/* Paste & Generate Button */}
@@ -1443,12 +1615,26 @@ function RoomDetailPage() {
           <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', width: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
             {/* Session Questions - flexible width */}
             <div style={{ flex: '1 1 calc(70% - 10px)', minWidth: '300px', maxWidth: '100%', background: 'var(--bg-card)', borderRadius: '16px', padding: '20px', boxSizing: 'border-box', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-              <span style={{ fontSize: '20px' }}>📝</span>
-              <span style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                Session Questions
-              </span>
-              {generatedQuestions.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '20px' }}>📝</span>
+                <span style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                  Session Questions
+                </span>
+              </div>
+              
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={isPeerInstructionEnabled}
+                  onChange={(e) => setIsPeerInstructionEnabled(e.target.checked)}
+                  style={{ cursor: 'pointer' }}
+                />
+                🗣️ Peer Instruction Mode
+              </label>
+            </div>
+            {generatedQuestions.length > 0 && (
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
                 <span style={{
                   padding: '2px 10px',
                   background: '#d1fae5',
@@ -1457,10 +1643,10 @@ function RoomDetailPage() {
                   fontSize: '12px',
                   fontWeight: '600'
                 }}>
-                  {generatedQuestions.length}
+                  {generatedQuestions.length} Questions
                 </span>
-              )}
-            </div>
+              </div>
+            )}
 
             {generatedQuestions.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1583,15 +1769,125 @@ function RoomDetailPage() {
               </div>
             )}
             </div>
-            {/* Leaderboard - flexible width */}
-            <div style={{ flex: '1 1 calc(30% - 10px)', minWidth: '280px', maxWidth: '100%', background: 'var(--bg-card)', borderRadius: '16px', padding: '20px', boxSizing: 'border-box', overflow: 'hidden' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                <span style={{ fontSize: '20px' }}>🏆</span>
-                <span style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                  Leaderboard
-                </span>
+            {/* Leaderboard/Exit Ticket - flexible width */}
+            <div style={{
+              flex: '1 1 calc(30% - 10px)',
+              minWidth: '280px',
+              background: 'var(--bg-card)',
+              borderRadius: '16px',
+              padding: '20px',
+              boxSizing: 'border-box'
+            }}>
+              {/* Tab headers */}
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+                <button
+                  onClick={() => setRightPanelTab('leaderboard')}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    borderBottom: rightPanelTab === 'leaderboard' ? '2.5px solid #3b82f6' : 'none',
+                    color: rightPanelTab === 'leaderboard' ? '#3b82f6' : 'var(--text-secondary)',
+                    fontWeight: '700',
+                    fontSize: '13px',
+                    padding: '4px 6px',
+                    cursor: 'pointer',
+                    outline: 'none'
+                  }}
+                >
+                  🏆 Leaderboard
+                </button>
+                <button
+                  onClick={() => setRightPanelTab('exittickets')}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    borderBottom: rightPanelTab === 'exittickets' ? '2.5px solid #3b82f6' : 'none',
+                    color: rightPanelTab === 'exittickets' ? '#3b82f6' : 'var(--text-secondary)',
+                    fontWeight: '700',
+                    fontSize: '13px',
+                    padding: '4px 6px',
+                    cursor: 'pointer',
+                    outline: 'none'
+                  }}
+                >
+                  📝 Exit Tickets
+                </button>
               </div>
-              <Leaderboard roomId={room?._id} token={token} socket={socket} />
+
+              {rightPanelTab === 'leaderboard' ? (
+                <Leaderboard roomId={room?._id} token={token} socket={socket} />
+              ) : (
+                /* Exit Ticket Analytics View */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {analyticsLoading ? (
+                    <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-secondary)' }}>Loading analytics...</div>
+                  ) : exitTicketAnalytics.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '450px', overflowY: 'auto', paddingRight: '4px' }}>
+                      {exitTicketAnalytics.map((ticket) => (
+                        <div key={ticket.ticketId} style={{
+                          padding: '12px',
+                          background: 'var(--bg-primary)',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border-color)',
+                          textAlign: 'left'
+                        }}>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px', display: 'flex', justifyContent: 'space-between' }}>
+                            <span>{new Date(ticket.createdAt).toLocaleTimeString()}</span>
+                            {ticket.isActive && <span style={{ color: '#10b981', fontWeight: '700' }}>(ACTIVE)</span>}
+                          </div>
+                          <p style={{ margin: '0 0 10px', fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', lineHeight: '1.4' }}>
+                            {ticket.prompt}
+                          </p>
+                          <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: 'var(--text-secondary)', borderTop: '1px solid var(--border-color)', paddingTop: '8px', marginBottom: '8px' }}>
+                            <span>Responses: <strong>{ticket.totalResponses}</strong></span>
+                            <span>Avg Rating: <strong style={{ color: '#3b82f6' }}>{ticket.averageUnderstanding}/5</strong></span>
+                          </div>
+
+                          {/* Pace Counts Visualizer */}
+                          <div style={{ display: 'flex', gap: '4px', height: '6px', background: 'var(--border-color)', borderRadius: '3px', overflow: 'hidden', marginBottom: '8px' }}>
+                            {['too-fast', 'just-right', 'too-slow'].map((pKey) => {
+                              const pCount = ticket.paceCounts?.[pKey] || 0
+                              const percent = ticket.totalResponses > 0 ? (pCount / ticket.totalResponses) * 100 : 0
+                              const bg = pKey === 'too-fast' ? '#ef4444' : pKey === 'just-right' ? '#10b981' : '#f59e0b'
+                              return (
+                                <div key={pKey} style={{ width: `${percent}%`, background: bg }} />
+                              )
+                            })}
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                            <span>Fast: {ticket.paceCounts?.['too-fast'] || 0}</span>
+                            <span>Right: {ticket.paceCounts?.['just-right'] || 0}</span>
+                            <span>Slow: {ticket.paceCounts?.['too-slow'] || 0}</span>
+                          </div>
+                          
+                          {/* Feedback list */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                            {ticket.feedbacks?.map((fb, fIdx) => (
+                              <div key={fIdx} style={{
+                                padding: '6px 8px',
+                                background: 'var(--bg-card)',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                borderLeft: `3px solid ${fb.understanding >= 4 ? '#10b981' : fb.understanding >= 3 ? '#f59e0b' : '#ef4444'}`
+                              }}>
+                                <p style={{ margin: '0 0 4px', color: 'var(--text-primary)', lineHeight: '1.4' }}>{fb.feedback}</p>
+                                <div style={{ fontSize: '9px', color: 'var(--text-secondary)', display: 'flex', gap: '8px' }}>
+                                  <span>Pace: <strong>{fb.pace.replace('-', ' ')}</strong></span>
+                                  <span>Rating: <strong>{fb.understanding}/5</strong></span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                      No exit tickets launched yet.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1715,6 +2011,92 @@ function RoomDetailPage() {
           onNext={handleTextQuestionClose}
           isLast={true}
         />
+      )}
+
+      {/* Exit Ticket Launch Modal */}
+      {showExitTicketLaunchModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.7)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 3000,
+          fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif'
+        }}>
+          <div style={{
+            background: 'var(--bg-card)',
+            borderRadius: '20px',
+            padding: '24px',
+            width: '400px',
+            boxShadow: 'var(--card-shadow)',
+            border: '1px solid var(--border-color)',
+            textAlign: 'left'
+          }}>
+            <h2 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 12px 0' }}>
+              📝 Configure Exit Ticket Prompt
+            </h2>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: '1.4' }}>
+              Launch an anonymous feedback prompt to all students in the room. This helps capture muddiest points and pace metrics.
+            </p>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>Feedback Prompt Question</label>
+              <textarea
+                value={exitTicketPrompt}
+                onChange={(e) => setExitTicketPrompt(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-primary)',
+                  color: 'var(--text-primary)',
+                  fontSize: '13px',
+                  outline: 'none',
+                  minHeight: '80px',
+                  fontFamily: 'inherit',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={() => setShowExitTicketLaunchModal(false)}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  background: 'transparent',
+                  color: 'var(--text-secondary)',
+                  fontWeight: '600',
+                  fontSize: '13px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLaunchExitTicket}
+                style={{
+                  flex: 2,
+                  padding: '10px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                  color: 'white',
+                  fontWeight: '700',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)'
+                }}
+              >
+                Launch Now
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <style>{`
