@@ -24,6 +24,42 @@ function DashboardPage() {
     totalResponses: 0
   })
 
+  // Rank-SP Leaderboard states
+  const [selectedLeaderboardRoomId, setSelectedLeaderboardRoomId] = useState('')
+  const [dashboardLeaderboard, setDashboardLeaderboard] = useState([])
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false)
+
+  // Set default leaderboard room once rooms are fetched
+  useEffect(() => {
+    if (rooms && rooms.length > 0 && !selectedLeaderboardRoomId) {
+      setSelectedLeaderboardRoomId(rooms[0]._id)
+    }
+  }, [rooms])
+
+  // Fetch leaderboard data when selected room changes
+  useEffect(() => {
+    if (selectedLeaderboardRoomId && token) {
+      fetchDashboardLeaderboard(selectedLeaderboardRoomId)
+    }
+  }, [selectedLeaderboardRoomId, token])
+
+  const fetchDashboardLeaderboard = async (rid) => {
+    setLeaderboardLoading(true)
+    try {
+      const res = await fetch(`${API_URL}/responses/leaderboard/${rid}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (data.success) {
+        setDashboardLeaderboard(data.leaderboard || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch dashboard leaderboard:', err)
+    } finally {
+      setLeaderboardLoading(false)
+    }
+  }
+
   // Initial setup
   useEffect(() => {
     if (token) {
@@ -273,66 +309,194 @@ function DashboardPage() {
             </div>
           </div>
 
-          {/* Active Rooms List */}
-          <h2 style={{ margin: '0 0 20px', fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)' }}>
-              My Active Rooms
-            </h2>
+          {/* Active Rooms & Leaderboard Two-Column Grid */}
+          <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
             
-            {isLoading ? (
-              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-                Loading rooms...
-              </div>
-            ) : rooms && rooms.filter(r => !r.endedAt).length > 0 ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-                {rooms.filter(r => !r.endedAt).map((room) => (
-                  <div
-                    key={room._id}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      padding: '20px',
-                      background: 'var(--bg-card)',
-                      borderRadius: '16px',
-                      border: '1px solid var(--border-color)',
-                      minHeight: '140px'
-                    }}
-                  >
-                    <div style={{ flex: 1 }}>
-                      <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>
-                        {room.name}
-                      </h3>
-                      <p style={{ margin: '0 0 4px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                        Code: <strong style={{ color: '#3b82f6', letterSpacing: '1px' }}>{room.code}</strong>
-                      </p>
-                      <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)' }}>
-                        {room.questionCount || 0} questions
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => navigate(`/teacher/room/${room._id}`)}
+            {/* Left Column: Active Rooms */}
+            <div style={{ flex: '2 1 500px', minWidth: '300px' }}>
+              <h2 style={{ margin: '0 0 20px', fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                🟢 My Active Rooms
+              </h2>
+              
+              {isLoading ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                  Loading rooms...
+                </div>
+              ) : rooms && rooms.filter(r => !r.endedAt).length > 0 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px' }}>
+                  {rooms.filter(r => !r.endedAt).map((room) => (
+                    <div
+                      key={room._id}
                       style={{
-                        marginTop: '16px',
-                        padding: '10px 16px',
-                        background: '#3b82f6',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        fontSize: '13px',
-                        fontWeight: '500',
-                        cursor: 'pointer'
+                        display: 'flex',
+                        flexDirection: 'column',
+                        padding: '20px',
+                        background: 'var(--bg-card)',
+                        borderRadius: '16px',
+                        border: '1px solid var(--border-color)',
+                        minHeight: '140px',
+                        boxShadow: 'var(--card-shadow)',
+                        transition: 'transform 0.2s, box-shadow 0.2s'
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-2px)'
+                        e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.1)'
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)'
+                        e.currentTarget.style.boxShadow = 'var(--card-shadow)'
                       }}
                     >
-                      Manage →
-                    </button>
+                      <div style={{ flex: 1 }}>
+                        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>
+                          {room.name}
+                        </h3>
+                        <p style={{ margin: '0 0 4px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                          Code: <strong style={{ color: '#3b82f6', letterSpacing: '1px' }}>{room.code}</strong>
+                        </p>
+                        <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)' }}>
+                          {room.questionCount || 0} questions
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => navigate(`/teacher/room/${room._id}`)}
+                        style={{
+                          marginTop: '16px',
+                          padding: '10px 16px',
+                          background: '#3b82f6',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontSize: '13px',
+                          fontWeight: '500',
+                          cursor: 'pointer',
+                          transition: 'background 0.2s'
+                        }}
+                      >
+                        Manage →
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)', background: 'var(--bg-card)', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>📭</div>
+                  <p>No rooms yet. Create your first room above!</p>
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Rank-SP Leaderboard widget */}
+            <div style={{
+              flex: '1 1 320px',
+              minWidth: '300px',
+              background: 'var(--bg-card)',
+              borderRadius: '16px',
+              padding: '24px',
+              boxShadow: 'var(--card-shadow)',
+              border: '1px solid var(--border-color)',
+              height: 'fit-content'
+            }}>
+              <h2 style={{ margin: '0 0 16px', fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                🏆 Rank-SP Leaderboard
+              </h2>
+              
+              {rooms && rooms.length > 0 ? (
+                <>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: '500' }}>Select Room to View Rankings</label>
+                    <select
+                      value={selectedLeaderboardRoomId}
+                      onChange={(e) => setSelectedLeaderboardRoomId(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--bg-primary)',
+                        color: 'var(--text-primary)',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        outline: 'none'
+                      }}
+                    >
+                      {rooms.map(r => (
+                        <option key={r._id} value={r._id}>{r.name} ({r.code})</option>
+                      ))}
+                    </select>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>📭</div>
-                <p>No rooms yet. Create your first room above!</p>
-              </div>
-            )}
+
+                  {leaderboardLoading ? (
+                    <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-secondary)' }}>
+                      <div style={{
+                        width: '24px',
+                        height: '24px',
+                        border: '2.5px solid var(--border-color)',
+                        borderTopColor: '#3b82f6',
+                        borderRadius: '50%',
+                        animation: 'spin 1s linear infinite',
+                        margin: '0 auto 8px'
+                      }} />
+                      Loading rankings...
+                    </div>
+                  ) : dashboardLeaderboard.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '320px', overflowY: 'auto', paddingRight: '4px' }}>
+                      {dashboardLeaderboard.map((entry) => (
+                        <div
+                          key={entry.studentId}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '10px 12px',
+                            background: entry.rank === 1 ? 'linear-gradient(135deg, #fef3c7, #fde68a)' :
+                                         entry.rank === 2 ? 'linear-gradient(135deg, #f3f4f6, #e5e7eb)' :
+                                         entry.rank === 3 ? 'linear-gradient(135deg, #fef3c7, #fde68a)' : 'var(--bg-primary)',
+                            borderRadius: '8px',
+                            border: entry.rank <= 3 
+                              ? `1.5px solid ${entry.rank === 1 ? '#f59e0b' : entry.rank === 2 ? '#9ca3af' : '#d97706'}` 
+                              : '1px solid var(--border-color)'
+                          }}
+                        >
+                          <span style={{ fontSize: '15px' }}>
+                            {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `${entry.rank}.`}
+                          </span>
+                          
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{
+                              fontSize: '13px',
+                              fontWeight: '600',
+                              color: 'var(--text-primary)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {entry.studentName}
+                            </div>
+                            <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
+                              {entry.correctCount}/{entry.totalAnswered} correct
+                            </div>
+                          </div>
+
+                          <div style={{ fontSize: '14px', fontWeight: '700', color: '#3b82f6', whiteSpace: 'nowrap' }}>
+                            {entry.totalPoints} pts
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                      📭 No student responses yet.
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                  No rooms created yet.
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

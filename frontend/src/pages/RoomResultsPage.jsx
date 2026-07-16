@@ -23,6 +23,8 @@ function RoomResultsPage() {
     averageScore: 0,
     participationRate: 0
   })
+  
+  const [expandedQuestionId, setExpandedQuestionId] = useState(null)
 
   useEffect(() => {
     if (token) {
@@ -116,7 +118,8 @@ function RoomResultsPage() {
           responsesData[qStat.questionId] = {
             totalResponses: qStat.totalResponses,
             correctCount: qStat.correctCount || 0,
-            answerCounts: qStat.answerCounts || {}
+            answerCounts: qStat.answerCounts || {},
+            detailedResponses: qStat.detailedResponses || []
           }
         })
         
@@ -460,6 +463,80 @@ function RoomResultsPage() {
                           )}
                         </div>
                       </div>
+
+                      {/* Attending Stack & Submission Order Detail (Teacher view only) */}
+                      {isTeacher && qStats.detailedResponses && qStats.detailedResponses.length > 0 && (
+                        <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                          <button
+                            onClick={() => setExpandedQuestionId(expandedQuestionId === q._id ? null : q._id)}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#3b82f6',
+                              fontSize: '13px',
+                              fontWeight: '600',
+                              cursor: 'pointer',
+                              padding: 0,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              marginBottom: '10px',
+                              outline: 'none'
+                            }}
+                          >
+                            <span>{expandedQuestionId === q._id ? '▼' : '▶'}</span>
+                            <span>Attending Stack / Submission Order ({qStats.detailedResponses.length})</span>
+                          </button>
+
+                          {expandedQuestionId === q._id && (
+                            <div style={{
+                              background: 'var(--bg-primary)',
+                              borderRadius: '10px',
+                              padding: '12px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '8px',
+                              maxHeight: '220px',
+                              overflowY: 'auto',
+                              border: '1px solid var(--border-color)'
+                            }}>
+                              {qStats.detailedResponses.map((r, rIdx) => (
+                                <div key={rIdx} style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  fontSize: '13px',
+                                  padding: '8px 12px',
+                                  background: 'var(--bg-card)',
+                                  borderRadius: '8px',
+                                  borderLeft: `4px solid ${r.isCorrect ? '#059669' : '#dc2626'}`,
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <span style={{ fontWeight: '700', color: 'var(--text-secondary)' }}>#{rIdx + 1}</span>
+                                    <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{r.studentName}</span>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                                      Time Taken: <strong style={{ color: 'var(--text-primary)' }}>{r.responseTime?.toFixed(1)}s</strong>
+                                    </span>
+                                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                                      Selected: <strong style={{ color: 'var(--text-primary)' }}>{String.fromCharCode(65 + r.selectedOption)}</strong>
+                                    </span>
+                                    <span style={{
+                                      fontWeight: '700',
+                                      color: r.isCorrect ? '#059669' : '#dc2626',
+                                      fontSize: '11px'
+                                    }}>
+                                      {r.isCorrect ? `+${r.points} pts` : 'Incorrect'}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )
                 })}

@@ -310,7 +310,7 @@ function AuthPage() {
         padding: '40px',
         position: 'relative'
       }}>
-        <div style={{
+        <div className="auth-card" style={{
           background: cardBg,
           backdropFilter: 'blur(20px)',
           borderRadius: '24px',
@@ -389,6 +389,7 @@ function AuthPage() {
                   value={forgotPasswordEmail}
                   onChange={(e) => setForgotPasswordEmail(e.target.value)}
                   required
+                  className="auth-input"
                   style={{
                     width: '100%',
                     padding: '14px 16px',
@@ -427,6 +428,7 @@ function AuthPage() {
               <button
                 type="submit"
                 disabled={forgotPasswordLoading}
+                className="auth-btn"
                 style={{
                   width: '100%',
                   padding: '14px',
@@ -480,6 +482,7 @@ function AuthPage() {
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     required={!isLogin}
+                    className="auth-input"
                     style={{
                       width: '100%',
                       padding: '14px 16px',
@@ -514,6 +517,7 @@ function AuthPage() {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   required
+                  className="auth-input"
                   style={{
                     width: '100%',
                     padding: '14px 16px',
@@ -542,6 +546,7 @@ function AuthPage() {
                   Password
                 </label>
                 <PasswordInput
+                  className="auth-input"
                   value={formData.password}
                   onChange={(e) => {
                     setFormData({ ...formData, password: e.target.value })
@@ -569,10 +574,11 @@ function AuthPage() {
                     Confirm Password
                   </label>
                   <PasswordInput
-                    value={formData.confirmPassword}
-                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                    placeholder="Confirm your password"
-                    style={{ background: isDark ? '#1e293b' : 'white' }}
+                  className="auth-input"
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  placeholder="Confirm your password"
+                  style={{ background: isDark ? '#1e293b' : 'white' }}
                   />
                 </div>
               )}
@@ -591,6 +597,7 @@ function AuthPage() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     <button
                       type="button"
+                      className="role-btn"
                       onClick={() => setFormData({ ...formData, role: 'student' })}
                       style={{
                         padding: '14px',
@@ -610,6 +617,7 @@ function AuthPage() {
                     </button>
                     <button
                       type="button"
+                      className="role-btn"
                       onClick={() => setFormData({ ...formData, role: 'teacher' })}
                       style={{
                         padding: '14px',
@@ -634,6 +642,7 @@ function AuthPage() {
               <button
                 type="submit"
                 disabled={isLoading}
+                className="auth-btn"
                 style={{
                   width: '100%',
                   padding: '16px',
@@ -724,6 +733,44 @@ function AuthPage() {
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        .auth-card {
+          transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .auth-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 30px 100px rgba(0,0,0,0.35);
+          border-color: rgba(99, 102, 241, 0.4) !important;
+        }
+        .auth-input {
+          transition: all 0.3s ease;
+        }
+        .auth-input:hover {
+          border-color: rgba(99, 102, 241, 0.5) !important;
+          box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+        }
+        .auth-input:focus {
+          border-color: #6366f1 !important;
+          box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.25);
+        }
+        .auth-btn {
+          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .auth-btn:hover:not(:disabled) {
+          transform: translateY(-2px);
+          box-shadow: 0 12px 30px rgba(99, 102, 241, 0.6) !important;
+          opacity: 0.95;
+        }
+        .auth-btn:active:not(:disabled) {
+          transform: translateY(0);
+        }
+        .role-btn {
+          transition: all 0.3s ease;
+        }
+        .role-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 20px rgba(99, 102, 241, 0.2);
+          border-color: #6366f1 !important;
         }
       `}</style>
     </div>

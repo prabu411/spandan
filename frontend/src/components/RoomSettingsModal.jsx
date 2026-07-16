@@ -358,6 +358,48 @@ function RoomSettingsModal({ isOpen, onClose, settings, onSave }) {
           </div>
         </div>
 
+        {/* Response Warning Threshold (thresholdTime) */}
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{
+            display: 'block',
+            marginBottom: '8px',
+            fontSize: '14px',
+            fontWeight: '500',
+            color: 'var(--text-primary)'
+          }}>
+            Suggested Response Threshold Time
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <input
+              type="number"
+              min="0"
+              max="300"
+              value={localSettings.thresholdTime !== undefined ? localSettings.thresholdTime : 15}
+              onChange={(e) => setLocalSettings(prev => ({ 
+                ...prev, 
+                thresholdTime: Math.min(300, Math.max(0, parseInt(e.target.value) || 0))
+              }))}
+              style={{
+                width: '100px',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-primary)',
+                color: 'var(--text-primary)',
+                fontSize: '18px',
+                fontWeight: '600',
+                textAlign: 'center'
+              }}
+            />
+            <span style={{
+              fontSize: '16px',
+              color: 'var(--text-secondary)'
+            }}>
+              seconds (warns students if exceeded)
+            </span>
+          </div>
+        </div>
+
         {/* Points */}
         <div style={{ marginBottom: '24px' }}>
           <label style={{

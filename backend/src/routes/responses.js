@@ -243,6 +243,88 @@ router.get('/stats/student/:studentId', async (req, res) => {
   }
 })
 
+// GET /api/responses/stats/performance-log - Get student performance log for past 5 days
+router.get('/stats/performance-log', async (req, res) => {
+  try {
+    const Response = (await import('../models/Response.js')).default
+    const studentId = req.user._id
+
+    // Compute the date 5 days ago (midnight)
+    const fiveDaysAgo = new Date()
+    fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5)
+    fiveDaysAgo.setHours(0, 0, 0, 0)
+
+    // Retrieve responses for student in the last 5 days
+    const responses = await Response.find({
+      studentId,
+      createdAt: { $gte: fiveDaysAgo }
+    }).lean()
+
+    // Aggregate by calendar date (YYYY-MM-DD)
+    const dailyStats = {}
+    
+    // Initialize past 5 days with zero stats
+    for (let i = 0; i < 5; i++) {
+      const d = new Date()
+      d.setDate(d.getDate() - i)
+      const dateStr = d.toISOString().split('T')[0]
+      dailyStats[dateStr] = {
+        date: dateStr,
+        totalAnswered: 0,
+        correctCount: 0,
+        points: 0,
+        accuracy: 0
+      }
+    }
+
+    // Populate actual response data
+    responses.forEach(r => {
+      if (r.createdAt) {
+        const dateStr = new Date(r.createdAt).toISOString().split('T')[0]
+        if (dailyStats[dateStr]) {
+          dailyStats[dateStr].totalAnswered += 1
+          if (r.isCorrect) {
+            dailyStats[dateStr].correctCount += 1
+          }
+          dailyStats[dateStr].points += r.points || 0
+        }
+      }
+    })
+
+    // Compute accuracy percentages
+    let overallCorrect = 0
+    let overallAnswered = 0
+    const log = Object.values(dailyStats).map(day => {
+      const accuracy = day.totalAnswered > 0 ? Math.round((day.correctCount / day.totalAnswered) * 100) : 0
+      day.accuracy = accuracy
+      overallCorrect += day.correctCount
+      overallAnswered += day.totalAnswered
+      return day
+    }).sort((a, b) => a.date.localeCompare(b.date)) // chronological order
+
+    const overallAccuracy = overallAnswered > 0 ? Math.round((overallCorrect / overallAnswered) * 100) : 100
+
+    // Show warning flag if student has answered at least 3 questions and accuracy is below 50%
+    const showWarning = overallAnswered >= 3 && overallAccuracy < 50
+    const warningMessage = showWarning 
+      ? "Warning: Your average score is below 50% over the last 5 days. Consider reviewing materials or talking to your teacher."
+      : null
+
+    res.json({
+      success: true,
+      performanceLog: log,
+      overallAccuracy,
+      overallAnswered,
+      showWarning,
+      warningMessage
+    })
+  } catch (error) {
+    console.error('Error fetching performance log:', error)
+    res.status(500).json({ success: false, error: 'Failed to fetch performance log' })
+  }
+})
+
+
 // GET /api/responses/stats/room/:roomId - Get room stats for teacher
 router.get('/stats/room/:roomId', async (req, res) => {
   try {
@@ -289,13 +371,30 @@ router.get('/stats/room/:roomId', async (req, res) => {
         }
       })
       
+      // Get detailed responses sorted chronologically for the submission stack
+      const detailedResponses = await Response.find({ roomId, questionId: q._id })
+        .populate('studentId', 'name email')
+        .sort({ createdAt: 1 })
+        .lean()
+
+      const details = detailedResponses.map(r => ({
+        studentName: r.studentId?.name || r.studentId?.email || 'Unknown Student',
+        selectedOption: r.selectedOption,
+        selectedOptions: r.selectedOptions || [r.selectedOption],
+        isCorrect: r.isCorrect,
+        responseTime: r.responseTime,
+        points: r.points,
+        timestamp: r.createdAt
+      }))
+      
       return {
         questionId: q._id,
         question: q.question,
         type: q.type,
         totalResponses: responses.length,
         correctCount,
-        answerCounts
+        answerCounts,
+        detailedResponses: details
       }
     }))
 

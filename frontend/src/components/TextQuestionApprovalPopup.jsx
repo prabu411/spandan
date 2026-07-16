@@ -19,7 +19,33 @@ function TextQuestionApprovalPopup({
   useEffect(() => {
     setPendingQuestions(questions || [])
     setCurrentIndex(0)
+    setIsEditing(false)
   }, [questions])
+
+  // Editing state hooks
+  const [isEditing, setIsEditing] = useState(false)
+  const [editQuestion, setEditQuestion] = useState('')
+  const [editOptions, setEditOptions] = useState([])
+  const [editExplanation, setEditExplanation] = useState('')
+
+  const startEdit = () => {
+    setEditQuestion(currentQuestion?.question || '')
+    setEditOptions((currentQuestion?.options || []).map(o => ({ ...o })))
+    setEditExplanation(currentQuestion?.explanation || '')
+    setIsEditing(true)
+  }
+
+  const saveEdit = () => {
+    const updated = [...pendingQuestions]
+    updated[currentIndex] = {
+      ...currentQuestion,
+      question: editQuestion,
+      options: editOptions,
+      explanation: editExplanation
+    }
+    setPendingQuestions(updated)
+    setIsEditing(false)
+  }
 
   const currentQuestion = pendingQuestions[currentIndex]
 
@@ -255,116 +281,265 @@ function TextQuestionApprovalPopup({
           padding: '20px',
           marginBottom: '20px',
           border: '1px solid var(--border-color)'
-        }}>
-          {/* Type Badge and Points */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-            <span style={{
-              padding: '4px 10px',
-              borderRadius: '6px',
-              fontSize: '11px',
-              fontWeight: '600',
-              background: currentQuestion.type === 'MCQ' 
-                ? 'rgba(59, 130, 246, 0.15)' 
-                : currentQuestion.type === 'TF'
-                  ? 'rgba(16, 185, 129, 0.15)'
-                  : 'rgba(139, 92, 246, 0.15)',
-              color: currentQuestion.type === 'MCQ' 
-                ? '#3b82f6' 
-                : currentQuestion.type === 'TF'
-                  ? '#10b981'
-                  : '#8b5cf6'
-            }}>
-              {currentQuestion.type}
-            </span>
-            <span style={{
-              padding: '4px 10px',
-              borderRadius: '6px',
-              fontSize: '11px',
-              fontWeight: '600',
-              background: 'rgba(245, 158, 11, 0.15)',
-              color: '#f59e0b'
-            }}>
-              {currentQuestion.points || 100} pts
-            </span>
-            {currentQuestion.difficulty && (
+               {/* Type Badge and Points */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{
                 padding: '4px 10px',
                 borderRadius: '6px',
                 fontSize: '11px',
                 fontWeight: '600',
-                background: 'rgba(107, 114, 128, 0.15)',
-                color: '#6b7280',
-                textTransform: 'capitalize'
+                background: currentQuestion.type === 'MCQ' 
+                  ? 'rgba(59, 130, 246, 0.15)' 
+                  : currentQuestion.type === 'TF'
+                    ? 'rgba(16, 185, 129, 0.15)'
+                    : 'rgba(139, 92, 246, 0.15)',
+                color: currentQuestion.type === 'MCQ' 
+                  ? '#3b82f6' 
+                  : currentQuestion.type === 'TF'
+                    ? '#10b981'
+                    : '#8b5cf6'
               }}>
-                {currentQuestion.difficulty}
+                {currentQuestion.type}
               </span>
+              <span style={{
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: '600',
+                background: 'rgba(245, 158, 11, 0.15)',
+                color: '#f59e0b'
+              }}>
+                {currentQuestion.points || 100} pts
+              </span>
+              {currentQuestion.difficulty && (
+                <span style={{
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  background: 'rgba(107, 114, 128, 0.15)',
+                  color: '#6b7280',
+                  textTransform: 'capitalize'
+                }}>
+                  {currentQuestion.difficulty}
+                </span>
+              )}
+            </div>
+            
+            {!isEditing && !isQuestionLaunched && (
+              <button
+                onClick={startEdit}
+                style={{
+                  background: 'rgba(59, 130, 246, 0.1)',
+                  color: '#3b82f6',
+                  border: '1px solid rgba(59, 130, 246, 0.2)',
+                  borderRadius: '6px',
+                  padding: '4px 10px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                ✏️ Modify Question
+              </button>
             )}
           </div>
 
-          {/* Question Text */}
-          <h3 style={{
-            margin: '0 0 16px 0',
-            fontSize: '16px',
-            fontWeight: '500',
-            color: 'var(--text-primary)',
-            lineHeight: '1.5'
-          }}>
-            {currentQuestion.question}
-          </h3>
-
-          {/* Options */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {currentQuestion.options && currentQuestion.options.map((option, idx) => {
-              const optionLetter = String.fromCharCode(65 + idx)
-              return (
-                <div 
-                  key={idx}
+          {isEditing ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '4px', textAlign: 'left' }}>Question Stem</label>
+                <textarea
+                  value={editQuestion}
+                  onChange={(e) => setEditQuestion(e.target.value)}
                   style={{
-                    padding: '12px 14px',
-                    background: option.isCorrect 
-                      ? 'rgba(16, 185, 129, 0.1)' 
-                      : 'var(--bg-secondary)',
-                    border: `2px solid ${option.isCorrect ? '#10b981' : 'var(--border-color)'}`,
-                    borderRadius: '10px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px'
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-primary)',
+                    minHeight: '70px',
+                    fontFamily: 'inherit',
+                    fontSize: '14px',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px', textAlign: 'left' }}>Options (check correct options)</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {editOptions.map((opt, oIdx) => (
+                    <div key={oIdx} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <input
+                        type={currentQuestion.type === 'MSQ' ? 'checkbox' : 'radio'}
+                        name="correct-option-group"
+                        checked={opt.isCorrect}
+                        onChange={(e) => {
+                          const updatedOpts = editOptions.map((o, idx) => {
+                            if (currentQuestion.type === 'MSQ') {
+                              return idx === oIdx ? { ...o, isCorrect: e.target.checked } : o
+                            } else {
+                              return { ...o, isCorrect: idx === oIdx }
+                            }
+                          })
+                          setEditOptions(updatedOpts)
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      <input
+                        type="text"
+                        value={opt.text}
+                        onChange={(e) => {
+                          const updatedOpts = [...editOptions]
+                          updatedOpts[oIdx].text = e.target.value
+                          setEditOptions(updatedOpts)
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border-color)',
+                          background: 'var(--bg-card)',
+                          color: 'var(--text-primary)',
+                          fontSize: '13px',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '4px', textAlign: 'left' }}>Explanation</label>
+                <input
+                  type="text"
+                  value={editExplanation}
+                  onChange={(e) => setEditExplanation(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-primary)',
+                    fontSize: '13px',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', marginTop: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-color)',
+                    background: 'transparent',
+                    color: 'var(--text-secondary)',
+                    fontWeight: '600',
+                    fontSize: '13px',
+                    cursor: 'pointer'
                   }}
                 >
-                  <span style={{
-                    width: '26px',
-                    height: '26px',
-                    borderRadius: '50%',
-                    background: option.isCorrect ? '#10b981' : 'var(--border-color)',
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveEdit}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#3b82f6',
                     color: 'white',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    flexShrink: 0
-                  }}>
-                    {optionLetter}
-                  </span>
-                  <span style={{
-                    fontSize: '14px',
-                    color: 'var(--text-primary)',
-                    flex: 1
-                  }}>
-                    {option.text}
-                  </span>
-                  {option.isCorrect && (
-                    <span style={{
-                      fontSize: '16px',
-                      color: '#10b981'
-                    }}>
-                      ✓
-                    </span>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+                    fontWeight: '600',
+                    fontSize: '13px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Question Text */}
+              <h3 style={{
+                margin: '0 0 16px 0',
+                fontSize: '16px',
+                fontWeight: '500',
+                color: 'var(--text-primary)',
+                lineHeight: '1.5'
+              }}>
+                {currentQuestion.question}
+              </h3>
+
+              {/* Options */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {currentQuestion.options && currentQuestion.options.map((option, idx) => {
+                  const optionLetter = String.fromCharCode(65 + idx)
+                  return (
+                    <div 
+                      key={idx}
+                      style={{
+                        padding: '12px 14px',
+                        background: option.isCorrect 
+                          ? 'rgba(16, 185, 129, 0.1)' 
+                          : 'var(--bg-secondary)',
+                        border: `2px solid ${option.isCorrect ? '#10b981' : 'var(--border-color)'}`,
+                        borderRadius: '10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px'
+                      }}
+                    >
+                      <span style={{
+                        width: '26px',
+                        height: '26px',
+                        borderRadius: '50%',
+                        background: option.isCorrect ? '#10b981' : 'var(--border-color)',
+                        color: 'white',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px',
+                        fontWeight: '700',
+                        flexShrink: 0
+                      }}>
+                        {optionLetter}
+                      </span>
+                      <span style={{
+                        fontSize: '14px',
+                        color: 'var(--text-primary)',
+                        flex: 1
+                      }}>
+                        {option.text}
+                      </span>
+                      {option.isCorrect && (
+                        <span style={{
+                          fontSize: '16px',
+                          color: '#10b981'
+                        }}>
+                          ✓
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Action Buttons */}

@@ -23,13 +23,41 @@ function StudentDashboard() {
     average: 0
   })
 
+  // Performance Log states
+  const [perfLog, setPerfLog] = useState([])
+  const [warningMsg, setWarningMsg] = useState('')
+  const [perfLoading, setPerfLoading] = useState(false)
+
   useEffect(() => {
     if (token) {
       setAuthToken(token)
       fetchStudentStats()
       fetchActiveRooms()
+      fetchPerformanceLog()
     }
   }, [token])
+
+  const fetchPerformanceLog = async () => {
+    setPerfLoading(true)
+    try {
+      const res = await fetch(`${API_URL}/responses/stats/performance-log`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (data.success) {
+        setPerfLog(data.performanceLog || [])
+        if (data.showWarning) {
+          setWarningMsg(data.warningMessage || '')
+        } else {
+          setWarningMsg('')
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch performance log:', err)
+    } finally {
+      setPerfLoading(false)
+    }
+  }
 
   const fetchStudentStats = async () => {
     try {
@@ -218,6 +246,76 @@ function StudentDashboard() {
                 {isJoining ? 'Joining...' : 'Join Room'}
               </button>
             </div>
+          </div>
+
+          {/* Performance Log Section */}
+          <div style={{
+            background: 'var(--bg-card)',
+            borderRadius: '16px',
+            padding: '24px',
+            boxShadow: 'var(--card-shadow)',
+            border: '1px solid var(--border-color)',
+            marginBottom: '32px'
+          }}>
+            <h2 style={{ margin: '0 0 20px', fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)' }}>
+              📈 Past 5 Days Performance Log
+            </h2>
+
+            {/* Performance Warning Alert Banner */}
+            {warningMsg && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '2px solid #ef4444',
+                borderRadius: '12px',
+                padding: '16px',
+                marginBottom: '20px',
+                color: '#ef4444',
+                fontSize: '14px',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}>
+                <span style={{ fontSize: '24px' }}>⚠️</span>
+                <div style={{ textAlign: 'left' }}>
+                  <h4 style={{ margin: '0 0 4px', fontSize: '15px' }}>Performance Alert</h4>
+                  <p style={{ margin: 0, opacity: 0.9 }}>{warningMsg}</p>
+                </div>
+              </div>
+            )}
+
+            {perfLoading ? (
+              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-secondary)' }}>Loading performance log...</div>
+            ) : perfLog.length > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+                {perfLog.map((day, idx) => (
+                  <div key={idx} style={{
+                    background: 'var(--bg-primary)',
+                    borderRadius: '12px',
+                    padding: '16px',
+                    border: '1px solid var(--border-color)',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600', marginBottom: '8px' }}>
+                      {new Date(day.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                    </div>
+                    <div style={{ fontSize: '24px', fontWeight: '700', color: day.totalAnswered > 0 ? (day.accuracy >= 70 ? '#059669' : day.accuracy >= 50 ? '#d97706' : '#dc2626') : 'var(--text-secondary)' }}>
+                      {day.totalAnswered > 0 ? `${day.accuracy}%` : '-'}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                      {day.totalAnswered > 0 ? `${day.correctCount}/${day.totalAnswered} correct` : 'No polls taken'}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '600', marginTop: '2px' }}>
+                      {day.points > 0 ? `+${day.points} pts` : ''}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-secondary)' }}>
+                No performance data for the last 5 days.
+              </div>
+            )}
           </div>
 
           {/* Active Joined Rooms Section */}

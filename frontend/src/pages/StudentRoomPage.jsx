@@ -23,6 +23,12 @@ function StudentRoomPage() {
   const [selectedOptions, setSelectedOptions] = useState([]) // Array for MSQ support
   const [submitted, setSubmitted] = useState(false)
   const [hasAnsweredPoll, setHasAnsweredPoll] = useState(false) // Track if student has answered at least one poll
+  
+  // Custom threshold & Top 3 states
+  const [roomThreshold, setRoomThreshold] = useState(15)
+  const [timeWarning, setTimeWarning] = useState('')
+  const [showTop3Popup, setShowTop3Popup] = useState(false)
+  const [top3Students, setTop3Students] = useState([])
   const [timeLeft, setTimeLeft] = useState(0)
   const [results, setResults] = useState(null)
   // Past responses loaded from MongoDB - no sessionStorage needed
@@ -49,6 +55,8 @@ function StudentRoomPage() {
       setCurrentQuestion(data)
       setSelectedOptions([])
       setSubmitted(false)
+      setTimeWarning('')
+      setShowTop3Popup(false)
       setTimeLeft(data.timer || 30)
       
       if (data.question && data.question.timeToAnswer) {
@@ -78,13 +86,29 @@ function StudentRoomPage() {
       }, 1000)
     }
 
-    const handleQuestionEnded = (data) => {
+    const handleQuestionEnded = async (data) => {
       // Clear timer if running
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current)
         timerIntervalRef.current = null
       }
       
+      // Fetch top 3 leaderboard for celebratory popup
+      if (room?._id) {
+        try {
+          const res = await fetch(`${API_URL}/responses/leaderboard/${room._id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+          const leaderboardData = await res.json()
+          if (leaderboardData.success) {
+            setTop3Students(leaderboardData.leaderboard?.slice(0, 3) || [])
+            setShowTop3Popup(true)
+          }
+        } catch (err) {
+          console.error('Failed to fetch top 3 for popup:', err)
+        }
+      }
+
       // Only fetch if room and user are available
       if (room?._id && user?._id) {
         fetchPastResponses(room._id, user._id)
@@ -104,6 +128,8 @@ function StudentRoomPage() {
       setCurrentQuestion(question)
       setSelectedOptions([])
       setSubmitted(false)
+      setTimeWarning('')
+      setShowTop3Popup(false)
       setTimeLeft(question.timeToAnswer || 30)
       
       timerIntervalRef.current = setInterval(() => {
@@ -143,6 +169,7 @@ function StudentRoomPage() {
     try {
       const roomData = await joinRoomByCode(roomCode)
       setRoom(roomData)
+      setRoomThreshold(roomData.settings?.thresholdTime !== undefined ? roomData.settings.thresholdTime : 15)
       if (user?._id && socket) {
         // Join via socket - room:joined confirms the student was added to RoomMember
         return new Promise((resolve, reject) => {
@@ -260,6 +287,13 @@ function StudentRoomPage() {
       selectedOptions,
       responseTime
     })
+    
+    // Set threshold time warnings
+    if (roomThreshold > 0 && responseTime > roomThreshold) {
+      setTimeWarning(`Response Warning: You took ${responseTime}s, which is slower than the suggested threshold of ${roomThreshold}s!`)
+    } else {
+      setTimeWarning('')
+    }
     
     // Set submitted immediately and fetch past responses without delay
     setSubmitted(true)
@@ -542,6 +576,22 @@ function StudentRoomPage() {
                   <p style={{ fontSize: '14px', opacity: 0.9, marginTop: '8px' }}>
                     Waiting for next question...
                   </p>
+                  
+                  {timeWarning && (
+                    <div style={{
+                      marginTop: '16px',
+                      background: 'rgba(245, 158, 11, 0.15)',
+                      border: '1.5px solid #ffd700',
+                      borderRadius: '10px',
+                      padding: '12px',
+                      color: '#ffd700',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      textAlign: 'center'
+                    }}>
+                      ⚠️ {timeWarning}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <button
@@ -769,6 +819,91 @@ function StudentRoomPage() {
           )}
         </div>
       </div>
+
+      {/* Top 3 celebratory podium popup */}
+      {showTop3Popup && top3Students.length > 0 && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.75)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 3000,
+          fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif'
+        }}>
+          <div style={{
+            background: 'var(--bg-card)',
+            borderRadius: '24px',
+            padding: '32px',
+            width: '400px',
+            textAlign: 'center',
+            boxShadow: '0 25px 80px rgba(0,0,0,0.5)',
+            border: '2px solid #ffd700',
+            position: 'relative',
+            animation: 'scaleIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+          }}>
+            <h2 style={{ fontSize: '24px', color: '#ffd700', fontWeight: '800', margin: '0 0 8px 0' }}>
+              🎉 Question Finished! 🎉
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: '0 0 24px 0' }}>
+              Here are the top performers in this room
+            </p>
+
+            {/* Podium list */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+              {top3Students.map((student, idx) => {
+                const trophies = ['🥇', '🥈', '🥉']
+                const podiumColors = ['#f59e0b', '#9ca3af', '#d97706']
+                return (
+                  <div key={student.studentId} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    background: idx === 0 ? 'rgba(245, 158, 11, 0.1)' : 'var(--bg-primary)',
+                    borderRadius: '12px',
+                    border: `1.5px solid ${podiumColors[idx]}`
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '22px' }}>{trophies[idx]}</span>
+                      <span style={{ fontWeight: '700', fontSize: '15px', color: 'var(--text-primary)' }}>
+                        {student.studentName}
+                      </span>
+                    </div>
+                    <span style={{ fontWeight: '800', color: podiumColors[idx], fontSize: '15px' }}>
+                      {student.totalPoints} pts
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+
+            <button
+              onClick={() => setShowTop3Popup(false)}
+              style={{
+                width: '100%',
+                padding: '12px',
+                background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '12px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                fontSize: '15px',
+                boxShadow: '0 8px 20px rgba(124, 58, 237, 0.3)'
+              }}
+            >
+              Awesome!
+            </button>
+          </div>
+          
+          <style>{`
+            @keyframes scaleIn {
+              from { transform: scale(0.85); opacity: 0; }
+              to { transform: scale(1); opacity: 1; }
+            }
+          `}</style>
+        </div>
+      )}
     </div>
   )
 }

@@ -13,7 +13,33 @@ function QuestionApprovalPopup({ questions, onApprove, onReject, onClose, onComp
   useEffect(() => {
     setPendingQuestions(questions || [])
     setCurrentIndex(0)
+    setIsEditing(false)
   }, [questions])
+
+  // Editing state hooks
+  const [isEditing, setIsEditing] = useState(false)
+  const [editQuestion, setEditQuestion] = useState('')
+  const [editOptions, setEditOptions] = useState([])
+  const [editExplanation, setEditExplanation] = useState('')
+
+  const startEdit = () => {
+    setEditQuestion(currentQuestion?.question || '')
+    setEditOptions((currentQuestion?.options || []).map(o => ({ ...o })))
+    setEditExplanation(currentQuestion?.explanation || '')
+    setIsEditing(true)
+  }
+
+  const saveEdit = () => {
+    const updated = [...pendingQuestions]
+    updated[currentIndex] = {
+      ...currentQuestion,
+      question: editQuestion,
+      options: editOptions,
+      explanation: editExplanation
+    }
+    setPendingQuestions(updated)
+    setIsEditing(false)
+  }
 
   // Start the countdown timer for a launched question
   const startTimer = (questionIndex) => {
@@ -226,92 +252,241 @@ function QuestionApprovalPopup({ questions, onApprove, onReject, onClose, onComp
           padding: '24px',
           marginBottom: '20px',
           border: '1px solid var(--border-color)'
-        }}>
-          {/* Question Type Badge */}
-          <div style={{
-            display: 'inline-block',
-            padding: '4px 12px',
-            borderRadius: '20px',
-            background: getTypeColor(currentQuestion.type) + '20',
-            color: getTypeColor(currentQuestion.type),
-            fontSize: '12px',
-            fontWeight: '600',
-            marginBottom: '12px'
-          }}>
-            {getTypeLabel(currentQuestion.type)}
-          </div>
-
-          {/* Question Text */}
-          <h3 style={{ 
-            margin: '0 0 20px', 
-            fontSize: '18px', 
-            fontWeight: '500', 
-            color: 'var(--text-primary)',
-            lineHeight: '1.5'
-          }}>
-            {currentQuestion.question}
-          </h3>
-
-          {/* Options */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {currentQuestion.options?.map((option, optIndex) => (
-              <div
-                key={optIndex}
+              {/* Question Type Badge and Edit Mode Toggle */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <div style={{
+              display: 'inline-block',
+              padding: '4px 12px',
+              borderRadius: '20px',
+              background: getTypeColor(currentQuestion.type) + '20',
+              color: getTypeColor(currentQuestion.type),
+              fontSize: '12px',
+              fontWeight: '600'
+            }}>
+              {getTypeLabel(currentQuestion.type)}
+            </div>
+            
+            {!isEditing && !isTimerActive && (
+              <button
+                onClick={startEdit}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  padding: '12px 16px',
-                  borderRadius: '10px',
-                  background: option.isCorrect ? '#d1fae5' : 'var(--bg-card)',
-                  border: option.isCorrect ? '2px solid #10b981' : '1px solid var(--border-color)',
-                  color: 'var(--text-primary)'
+                  background: 'rgba(59, 130, 246, 0.1)',
+                  color: '#3b82f6',
+                  border: '1px solid rgba(59, 130, 246, 0.2)',
+                  borderRadius: '6px',
+                  padding: '4px 10px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
                 }}
               >
-                <span style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '50%',
-                  background: option.isCorrect ? '#10b981' : 'var(--nav-hover)',
-                  color: 'white',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '12px',
-                  fontWeight: '600'
-                }}>
-                  {String.fromCharCode(65 + optIndex)}
-                </span>
-                <span style={{ flex: 1, fontSize: '14px' }}>{option.text}</span>
-                {option.isCorrect && (
-                  <span style={{ 
-                    padding: '2px 8px', 
-                    borderRadius: '4px', 
-                    background: '#10b981', 
-                    color: 'white', 
-                    fontSize: '10px', 
-                    fontWeight: '600'
-                  }}>
-                    CORRECT
-                  </span>
-                )}
-              </div>
-            ))}
+                ✏️ Modify Question
+              </button>
+            )}
           </div>
 
-          {/* Explanation */}
-          {currentQuestion.explanation && (
-            <div style={{
-              marginTop: '16px',
-              padding: '12px',
-              borderRadius: '8px',
-              background: '#fef3c7',
-              border: '1px solid #fcd34d',
-              fontSize: '13px',
-              color: '#92400e'
-            }}>
-              <strong>Explanation:</strong> {currentQuestion.explanation}
+          {isEditing ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '4px', textAlign: 'left' }}>Question Stem</label>
+                <textarea
+                  value={editQuestion}
+                  onChange={(e) => setEditQuestion(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-primary)',
+                    color: 'var(--text-primary)',
+                    minHeight: '70px',
+                    fontFamily: 'inherit',
+                    fontSize: '14px',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px', textAlign: 'left' }}>Options (check correct options)</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {editOptions.map((opt, oIdx) => (
+                    <div key={oIdx} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <input
+                        type={currentQuestion.type === 'MSQ' ? 'checkbox' : 'radio'}
+                        name="correct-option-group"
+                        checked={opt.isCorrect}
+                        onChange={(e) => {
+                          const updatedOpts = editOptions.map((o, idx) => {
+                            if (currentQuestion.type === 'MSQ') {
+                              return idx === oIdx ? { ...o, isCorrect: e.target.checked } : o
+                            } else {
+                              return { ...o, isCorrect: idx === oIdx }
+                            }
+                          })
+                          setEditOptions(updatedOpts)
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      <input
+                        type="text"
+                        value={opt.text}
+                        onChange={(e) => {
+                          const updatedOpts = [...editOptions]
+                          updatedOpts[oIdx].text = e.target.value
+                          setEditOptions(updatedOpts)
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border-color)',
+                          background: 'var(--bg-primary)',
+                          color: 'var(--text-primary)',
+                          fontSize: '13px',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '4px', textAlign: 'left' }}>Explanation</label>
+                <input
+                  type="text"
+                  value={editExplanation}
+                  onChange={(e) => setEditExplanation(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-primary)',
+                    color: 'var(--text-primary)',
+                    fontSize: '13px',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', marginTop: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-color)',
+                    background: 'transparent',
+                    color: 'var(--text-secondary)',
+                    fontWeight: '600',
+                    fontSize: '13px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveEdit}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#3b82f6',
+                    color: 'white',
+                    fontWeight: '600',
+                    fontSize: '13px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Save Changes
+                </button>
+              </div>
             </div>
+          ) : (
+            <>
+              {/* Question Text */}
+              <h3 style={{ 
+                margin: '0 0 20px', 
+                fontSize: '18px', 
+                fontWeight: '500', 
+                color: 'var(--text-primary)',
+                lineHeight: '1.5'
+              }}>
+                {currentQuestion.question}
+              </h3>
+
+              {/* Options */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {currentQuestion.options?.map((option, optIndex) => (
+                  <div
+                    key={optIndex}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '12px 16px',
+                      borderRadius: '10px',
+                      background: option.isCorrect ? '#d1fae5' : 'var(--bg-card)',
+                      border: option.isCorrect ? '2px solid #10b981' : '1px solid var(--border-color)',
+                      color: 'var(--text-primary)'
+                    }}
+                  >
+                    <span style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      background: option.isCorrect ? '#10b981' : 'var(--nav-hover)',
+                      color: 'white',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '12px',
+                      fontWeight: '600'
+                    }}>
+                      {String.fromCharCode(65 + optIndex)}
+                    </span>
+                    <span style={{ flex: 1, fontSize: '14px' }}>{option.text}</span>
+                    {option.isCorrect && (
+                      <span style={{ 
+                        padding: '2px 8px', 
+                        borderRadius: '4px', 
+                        background: '#10b981', 
+                        color: 'white', 
+                        fontSize: '10px', 
+                        fontWeight: '600'
+                      }}>
+                        CORRECT
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Explanation */}
+              {currentQuestion.explanation && (
+                <div style={{
+                  marginTop: '16px',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  background: '#fef3c7',
+                  border: '1px solid #fcd34d',
+                  fontSize: '13px',
+                  color: '#92400e',
+                  textAlign: 'left'
+                }}>
+                  <strong>Explanation:</strong> {currentQuestion.explanation}
+                </div>
+              )}
+            </>
           )}
         </div>
 

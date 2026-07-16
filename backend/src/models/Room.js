@@ -34,6 +34,7 @@ const roomSchema = new mongoose.Schema({
     requireCorrectAnswer: { type: Boolean, default: false },
     // Quiz settings
     timeToAnswer: { type: Number, default: 30 },
+    thresholdTime: { type: Number, default: 15 },
     points: { type: Number, default: 100 },
     segmentTime: { type: Number, default: 2 },
     questionsPerSegment: { type: Number, default: 2 },
