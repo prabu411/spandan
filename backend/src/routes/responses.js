@@ -320,7 +320,8 @@ router.get('/stats/room/:roomId', async (req, res) => {
     const Response = (await import('../models/Response.js')).default
     const Question = (await import('../models/Question.js')).default
     const Room = (await import('../models/Room.js')).default
-    
+    const RoomMember = (await import('../models/RoomMember.js')).default
+
     const { roomId } = req.params
     const currentUser = req.user
 
@@ -329,7 +330,7 @@ router.get('/stats/room/:roomId', async (req, res) => {
     if (!room) {
       return res.status(404).json({ error: 'Room not found' })
     }
-    
+
     // Only the room owner (teacher) can view detailed stats
     if (room.teacher.toString() !== currentUser._id.toString()) {
       return res.status(403).json({ error: 'Not authorized to view this room\'s stats' })
@@ -337,9 +338,13 @@ router.get('/stats/room/:roomId', async (req, res) => {
 
     // Total responses for this room
     const totalResponses = await Response.countDocuments({ roomId })
-    
+
     // Get unique students who responded
     const uniqueStudents = await Response.distinct('studentId', { roomId })
+
+    // Total students who JOINED the room (the roster) — always >= responders. This is what the
+    // teacher results page shows as "Total Students".
+    const totalJoined = await RoomMember.countDocuments({ roomId })
     
     // Get total questions in this room
     const totalQuestions = await Question.countDocuments({ roomId })
@@ -375,6 +380,7 @@ router.get('/stats/room/:roomId', async (req, res) => {
       stats: {
         totalResponses,
         totalStudents: uniqueStudents.length,
+        totalJoined,
         totalQuestions,
         questionStats: stats
       }
